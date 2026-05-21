@@ -1,7 +1,7 @@
 # Modular Personal Dashboard — Platform Design Spec
 
 **Date:** 2026-05-21
-**Status:** In progress (brainstorming session; updated incrementally)
+**Status:** Complete pending user review
 **Author:** Kevin + Claude (collaborative brainstorm)
 
 ---
@@ -351,17 +351,128 @@ PRs blocked if:
 
 ---
 
-## 12. Open Sections **[in progress / pending]**
+## 12. Error Handling **[locked in]**
 
-- **Section 4 (of design narrative): Error handling strategy** — module-level error boundaries, error UI, logging conventions, how a crashed module affects the shell
-- **Section 5 (of design narrative): Module dev workflow** — `pnpm new-module` mechanics, local DB setup, seed data conventions, hot reload behavior
-- **Section 6 (of design narrative): Deployment & CI** — branch model, preview deploys, GitHub Actions specifics, migration deploy order in practice
+### 12.1 UI error boundaries
 
-These will be filled in as brainstorming continues. This document will be updated in place.
+Three nested layers, provided by `lib/shared/boundaries.tsx` and applied automatically by the shell:
+
+- **Shell-level boundary** — wraps everything as last resort
+- **Per-module boundary** — wraps each module's route subtree; a crashed module shows a fallback while the rest of the dashboard keeps working
+- **Per-widget boundary** — each home-page widget is independently boundaried so one bad widget doesn't kill the grid
+
+Modules do not write their own boundaries.
+
+### 12.2 Server-side errors
+
+Every API route uses `withErrorHandler('<module-id>', handler)` from `lib/shared/with-error-handler.ts`. Standard responses:
+
+| Status | Cause | Body |
+|---|---|---|
+| 400 | Zod validation failure | `{ error: 'ValidationError', issues: [...] }` |
+| 401 | No valid session | `{ error: 'Unauthorized' }` |
+| 403 | Guest write / out-of-scope guest access | `{ error: 'Forbidden' }` |
+| 404 | `throw new NotFoundError()` | `{ error: 'NotFound' }` |
+| 500 | Unhandled exception | `{ error: 'InternalError' }` (sanitized; full trace logged) |
+
+### 12.3 Logging
+
+- Modules use `lib/shared/logger.ts`, never raw `console.*`
+- Emits structured JSON with `{ moduleId, route, timestamp, level }` auto-injected
+- Vercel ingests `console` output as logs (no external tracking service in v1)
+
+### 12.4 Cron failures
+
+- Errors logged with full context
+- No automatic retry (Vercel Cron default)
+- Modules must implement idempotent handlers
 
 ---
 
-## 13. After This Spec
+## 13. Module Dev Workflow **[locked in]**
+
+### 13.1 `pnpm new-module <id>`
+
+Steps:
+1. Prompts for `name`, `description`, `icon` (default `Package`)
+2. Copies `modules/_template/` to `modules/<id>/` with token substitution (`{{ID}}`, `{{NAME}}`, `{{SCHEMA}}`, etc.)
+3. Generates starter Drizzle schema with correct pgSchema and an initial empty migration
+4. Generates placeholder route, widget, and unit test
+5. Generates `README.md` from template
+
+No central registry. The module loader auto-discovers via filesystem scan.
+
+### 13.2 Local development environment
+
+A single-service `docker-compose.yml` at the repo root runs Postgres for local dev.
+
+| Command | Purpose |
+|---|---|
+| `pnpm db:up` | Start local Postgres |
+| `pnpm db:down` | Stop local Postgres |
+| `pnpm db:migrate` | Run platform + module migrations in order |
+| `pnpm db:seed` | Run all modules' `db/seed.ts` (alphabetical) |
+| `pnpm db:reset` | Drop all schemas, re-migrate, re-seed |
+| `pnpm dev` | Next.js dev server |
+| `pnpm test` | Vitest watch (unit) |
+| `pnpm test:integration` | Vitest integration suite against local DB |
+| `pnpm test:e2e` | Playwright smoke against `pnpm dev` |
+| `pnpm new-module <id>` | Scaffold a new module |
+
+### 13.3 Seed data convention
+
+- Optional `modules/<id>/db/seed.ts` exports a default async function `(db) => Promise<void>`
+- Runs only on explicit `pnpm db:seed` (never on deploy)
+- Modules are responsible for idempotent seeds (`ON CONFLICT DO NOTHING` or equivalent)
+
+### 13.4 Hot reload
+
+- Standard Next.js HMR
+- Manifest changes re-validate on save; validation errors shown as dev overlays (non-blocking)
+- Adding/removing a top-level module folder requires a dev server restart
+
+---
+
+## 14. Deployment & CI **[locked in]**
+
+### 14.1 Branching
+
+- `main` = production, auto-deploys to Vercel
+- Feature branches → PR → merge to `main`
+- Vercel preview deploys on every push to any non-`main` branch
+- No staging branch
+
+### 14.2 CI on PR (`.github/workflows/ci.yml`)
+
+In order, with parallelism where independent:
+
+1. **Lint + typecheck** (parallel) — ESLint (incl. custom cross-module-import ban), Prettier check, `tsc --noEmit`
+2. **Module validation** — runs `lib/shared/module-loader.ts` validation
+3. **Build** — `pnpm build`
+4. **Unit tests + coverage** — `pnpm test --run --coverage`; per-module `lib/` ≥ 80%
+5. **Integration tests** — against an ephemeral Neon branch created via `neonctl branch create`, torn down after
+6. **E2E smoke** — Playwright against the Vercel preview URL
+
+Branch protection on `main`: PRs required, all checks must pass.
+
+### 14.3 Migration deploy
+
+- Vercel build step runs `pnpm db:migrate` against the target Neon branch
+  - Preview deploys → preview Neon branch
+  - Production → main Neon branch
+- Migrations are forward-only
+- Code rollback = Vercel "Promote Previous Deployment" (data migrations must be hand-reversed)
+
+### 14.4 Secrets
+
+- Production + preview env vars live in Vercel project settings
+- Local dev uses `.env.local` (gitignored)
+- `.env.example` is committed listing every required env var name
+- Module loader rejects builds when any required env var is missing
+
+---
+
+## 15. After This Spec
 
 1. Spec self-review (placeholders, contradictions, ambiguity)
 2. User reviews and approves

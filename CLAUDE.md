@@ -284,16 +284,121 @@ Generates folder structure, manifest stub, empty test file, README, DB schema st
 
 ---
 
-## 10. Open Decisions (to be filled in as brainstorming continues)
+## 10. Error Handling
 
-- [ ] Error handling strategy (module-level error boundaries, error UI, logging conventions)
-- [ ] Module dev workflow specifics (hot reload behavior, local DB setup, seed data)
-- [ ] Deployment workflow (branch protection, preview deploys, CI specifics)
-- [ ] First module spec — Job Tracker (separate brainstorming session after platform is done)
+### 10.1 UI error boundaries
+
+Three layers, all provided by `lib/shared/boundaries.tsx` and applied automatically by the shell — modules don't write their own:
+
+- **Shell-level** — last resort, wraps everything
+- **Per-module** — wraps each module's route subtree; a crashed module shows a friendly fallback while the rest of the dashboard keeps working
+- **Per-widget** — each home-page widget is independently boundaried so one bad widget doesn't kill the grid
+
+### 10.2 Server-side errors
+
+- Every API route is wrapped with `lib/shared/with-error-handler.ts`:
+  ```ts
+  export const POST = withErrorHandler('job-tracker', async (req) => { ... });
+  ```
+- Standard responses:
+  - `400` — Zod validation failure (`{ error: 'ValidationError', issues: [...] }`)
+  - `401` — no session
+  - `403` — guest attempting write or out-of-scope access
+  - `404` — `new NotFoundError()`
+  - `500` — unhandled; sanitized message, full trace logged
+
+### 10.3 Logging
+
+- Modules use `lib/shared/logger.ts`, never raw `console.*`
+- `logger.info / warn / error` emit structured JSON with `{ moduleId, route, timestamp, level }` auto-injected
+- Vercel ingests `console` output as logs
+
+### 10.4 Cron failures
+
+Logged, no automatic retry. Modules are responsible for idempotent jobs.
 
 ---
 
-## 11. How to Use This Document
+## 11. Module Dev Workflow
+
+### 11.1 `pnpm new-module <id>`
+
+- Prompts for `name`, `description`, `icon`
+- Copies `modules/_template/` → `modules/<id>/` with `{{ID}}` / `{{NAME}}` substitution
+- Generates starter Drizzle schema with correct pgSchema and an empty initial migration
+- Generates placeholder route, widget, and unit test
+- No central registry — auto-discovered by the loader
+
+### 11.2 Local DB
+
+`docker-compose.yml` at repo root with one Postgres service.
+
+| Script | Purpose |
+|---|---|
+| `pnpm db:up` | Start local Postgres |
+| `pnpm db:migrate` | Run platform then all module migrations in order |
+| `pnpm db:seed` | Invoke each module's optional `db/seed.ts` (alphabetical) |
+| `pnpm db:reset` | Drop schemas, re-migrate, re-seed |
+| `pnpm dev` | Next.js dev server |
+| `pnpm test` | Vitest watch |
+| `pnpm test:integration` | Vitest integration suite (real DB) |
+| `pnpm test:e2e` | Playwright smoke tests |
+
+### 11.3 Seed data
+
+- Optional `modules/<id>/db/seed.ts` exports `(db) => Promise<void>`
+- Run only when `pnpm db:seed` is explicitly called (never on deploy)
+- Modules are responsible for idempotent seeds
+
+### 11.4 Hot reload
+
+Standard Next.js HMR. Manifest changes re-validate on save with non-blocking dev overlay errors. Adding/removing a module folder requires a dev server restart.
+
+---
+
+## 12. Deployment & CI
+
+### 12.1 Branching
+
+- `main` = production (Vercel auto-deploy)
+- Feature branches → PR → merge to `main`
+- Preview deploys on every non-`main` push
+
+### 12.2 GitHub Actions on PR
+
+`ci.yml` runs:
+
+1. Lint + typecheck (parallel) — ESLint with cross-module ban rule, Prettier, `tsc --noEmit`
+2. Module loader validation
+3. `pnpm build`
+4. Unit tests + coverage (fails if any module's `lib/` < 80%)
+5. Integration tests against ephemeral Neon branch
+6. Playwright smoke against the Vercel preview URL
+
+Branch protection: PR required on `main`, all checks must pass.
+
+### 12.3 Migrations on deploy
+
+- Vercel build step runs `pnpm db:migrate` against the target Neon branch (preview → preview branch, main → prod branch)
+- Forward-only; data-destructive rollbacks must be hand-reversed
+- Code rollback = Vercel "Promote Previous Deployment"
+
+### 12.4 Secrets
+
+- Production + preview env vars live in Vercel project settings
+- Local dev uses `.env.local` (gitignored)
+- `.env.example` is committed with every required variable name listed
+- Module loader validates required env vars at build time on Vercel
+
+---
+
+## 13. Open Items (to be filled in by separate brainstorming sessions)
+
+- [ ] First module spec — Job Tracker (its own brainstorm cycle after platform is built)
+
+---
+
+## 14. How to Use This Document
 
 - **Before making a structural change**, read the relevant section here. If your change conflicts with a principle, either change the principle (with reason recorded) or pick a different approach.
 - **When adding a new convention**, add it here in the relevant section.
