@@ -24,6 +24,10 @@ export async function loginAction(formData: FormData): Promise<void> {
   }
 
   const expiresAt = new Date(Date.now() + SESSION_TTL_SECONDS * 1000);
+  // NOTE: a row is inserted here for audit, but no request-time DB lookup
+  // occurs — the session token is stateless until Phase 7 wires up
+  // request-time validation. Deleting a row does NOT log the user out
+  // (rotate SESSION_COOKIE_SECRET for forced logout).
   const [session] = await db.insert(sessions).values({ expiresAt }).returning({ id: sessions.id });
 
   if (!session) {
@@ -44,5 +48,8 @@ export async function loginAction(formData: FormData): Promise<void> {
     maxAge: SESSION_TTL_SECONDS,
   });
 
-  redirect('/');
+  const next = String(formData.get('next') ?? '');
+  // Only allow same-origin, leading-slash paths; reject "//evil.com", protocol URLs, etc.
+  const safeNext = /^\/(?!\/)[^?#]*/.test(next) ? next : '/';
+  redirect(safeNext);
 }

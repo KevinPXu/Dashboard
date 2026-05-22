@@ -13,10 +13,11 @@ const ERROR_MESSAGES: Record<string, string> = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; next?: string }>;
 }) {
-  const { error } = await searchParams;
-  const errorMessage = error ? ERROR_MESSAGES[error] : undefined;
+  const params = await searchParams;
+  const errorMessage = params.error ? ERROR_MESSAGES[params.error] : undefined;
+  const nextPath = typeof params.next === 'string' ? params.next : undefined;
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
@@ -27,6 +28,7 @@ export default async function LoginPage({
         <CardContent>
           {errorMessage && <p className="mb-3 text-sm text-red-600">{errorMessage}</p>}
           <form action={loginAction} className="space-y-4">
+            {nextPath && <input type="hidden" name="next" value={nextPath} />}
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <Input id="password" name="password" type="password" autoFocus required />

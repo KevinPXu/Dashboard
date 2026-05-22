@@ -2,6 +2,8 @@ import 'server-only';
 import { cookies } from 'next/headers';
 import { verifySessionToken } from './session-token';
 
+// Also defined in /middleware.ts — keep in sync. Duplicated because the Edge
+// bundle must not transitively import this file (it pulls node:crypto).
 export const SESSION_COOKIE = 'dashboard_session';
 
 export type ShareScope = { moduleId: string; route: string; tokenId: string };

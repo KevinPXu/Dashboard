@@ -30,6 +30,9 @@ export const settings = platform.table('settings', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+// Currently audit-only — rows are inserted on login but no request-time
+// lookup uses them. Phase 7+ will add request-time validation so this
+// table becomes the canonical revocation surface.
 export const sessions = platform.table('sessions', {
   id: uuid('id').primaryKey().defaultRandom(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
