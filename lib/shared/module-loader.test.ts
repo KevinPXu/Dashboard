@@ -144,6 +144,128 @@ describe('validateModuleStructure', () => {
       }),
     ).rejects.toThrow(/routes\/missing/);
   });
+
+  it('passes when widget files exist (.tsx)', async () => {
+    const dir = makeModule(tmpRoot, 'widg');
+    writeFile(path.join(dir, 'widgets/foo.tsx'), 'export default function W(){return null}\n');
+    await expect(
+      validateModuleStructure(dir, {
+        id: 'widg',
+        routes: [],
+        api: [],
+        widgets: [
+          {
+            id: 'foo',
+            name: 'Foo',
+            defaultSize: { w: 1, h: 1 },
+            minSize: { w: 1, h: 1 },
+            component: 'widgets/foo',
+          },
+        ],
+        cron: [],
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('passes when widget files exist via .ts extension', async () => {
+    const dir = makeModule(tmpRoot, 'widg2');
+    writeFile(path.join(dir, 'widgets/bar.ts'), 'export default function W(){return null}\n');
+    await expect(
+      validateModuleStructure(dir, {
+        id: 'widg2',
+        routes: [],
+        api: [],
+        widgets: [
+          {
+            id: 'bar',
+            name: 'Bar',
+            defaultSize: { w: 1, h: 1 },
+            minSize: { w: 1, h: 1 },
+            component: 'widgets/bar',
+          },
+        ],
+        cron: [],
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('throws when widget file is missing', async () => {
+    const dir = makeModule(tmpRoot, 'wmissing');
+    await expect(
+      validateModuleStructure(dir, {
+        id: 'wmissing',
+        routes: [],
+        api: [],
+        widgets: [
+          {
+            id: 'gone',
+            name: 'Gone',
+            defaultSize: { w: 1, h: 1 },
+            minSize: { w: 1, h: 1 },
+            component: 'widgets/gone',
+          },
+        ],
+        cron: [],
+      }),
+    ).rejects.toThrow(/widgets\/gone/);
+  });
+
+  it('passes when api handlers exist at root and nested paths', async () => {
+    const dir = makeModule(tmpRoot, 'api1');
+    writeFile(path.join(dir, 'api/index.ts'), 'export const GET = () => new Response()\n');
+    writeFile(path.join(dir, 'api/users.list.ts'), 'export const GET = () => new Response()\n');
+    await expect(
+      validateModuleStructure(dir, {
+        id: 'api1',
+        routes: [],
+        api: [
+          { path: '/', methods: ['GET'] },
+          { path: '/users/list', methods: ['GET'] },
+        ],
+        widgets: [],
+        cron: [],
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('throws when api handler file is missing', async () => {
+    const dir = makeModule(tmpRoot, 'api2');
+    await expect(
+      validateModuleStructure(dir, {
+        id: 'api2',
+        routes: [],
+        api: [{ path: '/missing', methods: ['GET'] }],
+        widgets: [],
+        cron: [],
+      }),
+    ).rejects.toThrow(/missing/);
+  });
+
+  it('throws when cron handler does not start with module api prefix', async () => {
+    const dir = makeModule(tmpRoot, 'cronmod');
+    await expect(
+      validateModuleStructure(dir, {
+        id: 'cronmod',
+        routes: [],
+        api: [],
+        widgets: [],
+        cron: [{ schedule: '0 * * * *', handler: '/api/other/job' }],
+      }),
+    ).rejects.toThrow(/cron handler/i);
+  });
+
+  it('passes when cron handler starts with module api prefix', async () => {
+    const dir = makeModule(tmpRoot, 'cronok');
+    await expect(
+      validateModuleStructure(dir, {
+        id: 'cronok',
+        routes: [],
+        api: [],
+        widgets: [],
+        cron: [{ schedule: '0 * * * *', handler: '/api/cronok/job' }],
+      }),
+    ).resolves.toBeUndefined();
+  });
 });
 
 // Skip loadModuleConfig export check — it's used internally by discoverModules
