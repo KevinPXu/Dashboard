@@ -24,10 +24,7 @@ export async function loginAction(formData: FormData): Promise<void> {
   }
 
   const expiresAt = new Date(Date.now() + SESSION_TTL_SECONDS * 1000);
-  const [session] = await db
-    .insert(sessions)
-    .values({ expiresAt })
-    .returning({ id: sessions.id });
+  const [session] = await db.insert(sessions).values({ expiresAt }).returning({ id: sessions.id });
 
   if (!session) {
     redirect('/login?error=session');
