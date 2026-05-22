@@ -13,3 +13,6 @@ pnpm-lock.yaml
 CLAUDE.md
 docs/
 next-env.d.ts
+
+# Drizzle migration output (generator-managed)
+platform/db/migrations/
