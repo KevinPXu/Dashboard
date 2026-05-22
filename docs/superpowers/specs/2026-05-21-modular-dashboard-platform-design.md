@@ -404,18 +404,18 @@ No central registry. The module loader auto-discovers via filesystem scan.
 
 ### 13.2 Local development environment
 
-A single-service `docker-compose.yml` at the repo root runs Postgres for local dev.
+Local development uses a **Neon Postgres branch** (no local Docker). One project on Neon hosts `main` (prod) and `dev` (local) branches. Local dev points to the `dev` branch via `DATABASE_URL` in `.env.local`. CI uses ephemeral branches via `neonctl`.
 
 | Command | Purpose |
 |---|---|
-| `pnpm db:up` | Start local Postgres |
-| `pnpm db:down` | Stop local Postgres |
-| `pnpm db:migrate` | Run platform + module migrations in order |
+| `pnpm db:migrate` | Run platform + module migrations against `DATABASE_URL` |
 | `pnpm db:seed` | Run all modules' `db/seed.ts` (alphabetical) |
-| `pnpm db:reset` | Drop all schemas, re-migrate, re-seed |
+| `pnpm db:reset` | Drop all schemas, re-migrate, re-seed (use sparingly on shared branches) |
+| `pnpm db:generate` | Generate a new migration from a schema diff |
+| `pnpm db:studio` | Open Drizzle Studio against `DATABASE_URL` |
 | `pnpm dev` | Next.js dev server |
 | `pnpm test` | Vitest watch (unit) |
-| `pnpm test:integration` | Vitest integration suite against local DB |
+| `pnpm test:integration` | Vitest integration suite (real DB via `DATABASE_URL`) |
 | `pnpm test:e2e` | Playwright smoke against `pnpm dev` |
 | `pnpm new-module <id>` | Scaffold a new module |
 

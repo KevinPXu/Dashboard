@@ -487,6 +487,8 @@ git commit -m "chore: add docker-compose Postgres for local development"
 
 **Stop here. Do not start Phase 2 until every item below passes.**
 
+> **Note:** This plan originally specified a local docker-compose Postgres for development. We switched to using a Neon branch directly for dev (cleaner, identical to prod, no local infra). `docker-compose.yml` and the `db:up`/`db:down`/`db:logs` scripts have been removed. CI still uses a Postgres service container (or Neon ephemeral branches) — see Phase 12.
+
 **Testing suite:**
 
 ```bash
@@ -503,19 +505,19 @@ pnpm build
 pnpm test:run                 # zero or one trivial test — should exit 0
 pnpm exec playwright --version
 
-# 4. Local Postgres
-pnpm db:up
-docker compose ps             # dashboard-postgres should be "healthy"
-docker exec -i dashboard-postgres psql -U dashboard -d dashboard -c "SELECT 1;"
+# 4. Neon connectivity (after .env.local is populated)
+node -e "(async()=>{const p=(await import('postgres')).default;const sql=p(process.env.DATABASE_URL);const r=await sql\`SELECT 1 as ok\`;console.log(r);await sql.end();})()"
+# Expected: prints [ { ok: 1 } ]
+# (postgres-js will be a dep after Phase 2; for now this command may fail until it's installed)
 ```
 
 **Manual verification:**
 
-1. Run `pnpm dev`. Open http://localhost:3000. The default Next.js page (or our empty page) renders without console errors.
-2. Open `.env.local` and confirm `DATABASE_URL`, `DASHBOARD_PASSWORD`, `SHARE_LINK_SIGNING_KEY`, and `SESSION_COOKIE_SECRET` all have non-placeholder values.
-3. Stop the dev server (Ctrl-C).
+1. **Neon project created** at https://console.neon.tech with at least two branches: `main` (production) and `dev` (local development).
+2. **`.env.local` populated** with the `dev` branch's connection string as `DATABASE_URL`. Also confirm `DASHBOARD_PASSWORD`, `SHARE_LINK_SIGNING_KEY`, and `SESSION_COOKIE_SECRET` are real non-placeholder values.
+3. Run `pnpm dev`. Open http://localhost:3000. The default Next.js page (or our empty page) renders without console errors. Stop with Ctrl-C.
 
-**What this verifies:** the toolchain (Next.js, TypeScript strict, Tailwind, shadcn, ESLint, Prettier, Vitest, Playwright, pnpm scripts, docker-compose Postgres) is installed and functional. No platform logic exists yet — that's the next phase.
+**What this verifies:** the toolchain (Next.js, TypeScript strict, Tailwind, shadcn, ESLint, Prettier, Vitest, Playwright, pnpm scripts) is installed and functional, and a Neon Postgres branch is reachable from local dev. No platform logic exists yet — that's the next phase.
 
 ---
 
@@ -850,9 +852,10 @@ export type WidgetLayoutEntry = {
 - [ ] **Step 2: Generate migration**
 
 ```bash
-pnpm db:up
 pnpm db:generate
 ```
+
+(DATABASE_URL is read from `.env.local`, which points to the Neon dev branch — no local Postgres to start.)
 
 Expected: a SQL file appears under `platform/db/migrations/` creating the `platform` schema and the three tables.
 
@@ -3022,12 +3025,11 @@ import {
 
 - [ ] **Step 4: Run integration test**
 
-Ensure local Postgres is up and migrated:
+Ensure migrations have been applied to the Neon dev branch, then run integration tests (vitest reads `DATABASE_URL` from `.env.local` via the dotenv load wired into `vitest.setup.ts`):
 
 ```bash
-pnpm db:up
 pnpm db:migrate
-DATABASE_URL="postgres://dashboard:dashboard@localhost:5432/dashboard" pnpm test:integration
+pnpm test:integration
 ```
 
 Expected: 3 tests pass.
@@ -4582,12 +4584,13 @@ git commit -m "test: add Playwright E2E smoke covering login, module page, and m
 ```bash
 # 1. All tests
 pnpm lint && pnpm typecheck && pnpm test:run
-DATABASE_URL="postgres://dashboard:dashboard@localhost:5432/dashboard" pnpm test:integration
+pnpm test:integration
 
 # 2. Playwright E2E
-pnpm db:up && pnpm db:migrate
-DATABASE_URL="postgres://dashboard:dashboard@localhost:5432/dashboard" pnpm test:e2e
+pnpm db:migrate
+pnpm test:e2e
 # Expected: all 3 platform-smoke tests pass
+# (DATABASE_URL etc. come from .env.local pointing at the Neon dev branch.)
 
 # 3. Build sees the smoke module's cron in vercel.json
 pnpm build
@@ -4766,8 +4769,10 @@ A modular personal dashboard hosted on Vercel.
 
 ```bash
 pnpm install
-cp .env.example .env.local        # edit with real values
-pnpm db:up
+cp .env.example .env.local
+# Edit .env.local: paste your Neon dev-branch connection string into DATABASE_URL,
+# generate 32-byte hex values for SHARE_LINK_SIGNING_KEY and SESSION_COOKIE_SECRET,
+# set a real DASHBOARD_PASSWORD.
 pnpm db:migrate
 pnpm dev
 ```
@@ -4791,15 +4796,14 @@ See `CLAUDE.md` for the platform contract.
 | `pnpm test` | Run unit tests (watch) |
 | `pnpm test:run` | Run unit tests once |
 | `pnpm test:coverage` | Run unit tests with coverage |
-| `pnpm test:integration` | Run integration tests against local DB |
+| `pnpm test:integration` | Run integration tests against the Neon dev branch |
 | `pnpm test:e2e` | Run Playwright E2E tests |
 | `pnpm lint` | Lint |
 | `pnpm typecheck` | TypeScript type check |
 | `pnpm format` | Format with Prettier |
-| `pnpm db:up` | Start local Postgres |
-| `pnpm db:down` | Stop local Postgres |
-| `pnpm db:migrate` | Run all migrations |
+| `pnpm db:migrate` | Run all migrations against `DATABASE_URL` |
 | `pnpm db:generate` | Generate new migration from schema diff |
+| `pnpm db:studio` | Open Drizzle Studio against `DATABASE_URL` |
 | `pnpm new-module` | Scaffold a new module |
 ```
 

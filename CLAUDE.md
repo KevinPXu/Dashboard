@@ -369,17 +369,27 @@ Logged, no automatic retry. Modules are responsible for idempotent jobs.
 
 ### 11.2 Local DB
 
-`docker-compose.yml` at repo root with one Postgres service.
+**Local development uses a Neon Postgres branch** (no local Docker / no docker-compose). Rationale: identical engine and connection pattern to production, zero local infra to manage, and Neon's branching makes spinning up isolated test DBs easy.
+
+Setup once:
+1. Sign in at https://console.neon.tech
+2. Create a project named `personal-dashboard`
+3. Create a dev branch (e.g. `dev`) off `main`
+4. Copy that branch's connection string into `.env.local` as `DATABASE_URL`
+
+Recommended branch layout:
+- `main` (Neon branch) — production
+- `dev` (Neon branch) — local development
+- Per-test/CI branches created on demand via `neonctl branch create` (CI uses ephemeral branches; local tests can either reuse `dev` or create their own)
 
 | Script | Purpose |
 |---|---|
-| `pnpm db:up` | Start local Postgres |
-| `pnpm db:migrate` | Run platform then all module migrations in order |
+| `pnpm db:migrate` | Run platform then all module migrations against `DATABASE_URL` |
 | `pnpm db:seed` | Invoke each module's optional `db/seed.ts` (alphabetical) |
-| `pnpm db:reset` | Drop schemas, re-migrate, re-seed |
+| `pnpm db:reset` | Drop schemas, re-migrate, re-seed (use sparingly on shared branches) |
 | `pnpm dev` | Next.js dev server |
 | `pnpm test` | Vitest watch |
-| `pnpm test:integration` | Vitest integration suite (real DB) |
+| `pnpm test:integration` | Vitest integration suite (real DB via `DATABASE_URL`) |
 | `pnpm test:e2e` | Playwright smoke tests |
 
 ### 11.3 Seed data
