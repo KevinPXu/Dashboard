@@ -68,29 +68,12 @@ describe('discoverModules', () => {
     expect(result.map((m) => m.config.id)).toEqual(['job-tracker']);
   });
 
-  it('rejects two modules with the same id', async () => {
-    makeModule(tmpRoot, 'jobs');
-    const dir = path.join(tmpRoot, 'modules', 'duplicate-folder');
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(
-      path.join(dir, 'module.config.json'),
-      `${JSON.stringify({
-        id: 'jobs',
-        name: 'x',
-        version: '0.0.1',
-        description: 'x',
-        enabled: true,
-        icon: 'Box',
-        nav: { label: 'x', order: 0 },
-        routes: [],
-        api: [],
-        widgets: [],
-        db: { schema: 'jobs' },
-        cron: [],
-        env: { required: [], optional: [] },
-      })}\n`,
-    );
-    await expect(discoverModules(tmpRoot)).rejects.toThrow(/duplicate.*id/i);
+  it('returns modules in alphabetical order by id regardless of filesystem order', async () => {
+    makeModule(tmpRoot, 'charlie');
+    makeModule(tmpRoot, 'alpha');
+    makeModule(tmpRoot, 'bravo');
+    const result = await discoverModules(tmpRoot);
+    expect(result.map((m) => m.config.id)).toEqual(['alpha', 'bravo', 'charlie']);
   });
 
   it('rejects modules where folder name does not match config id', async () => {
@@ -254,8 +237,9 @@ describe('validateModuleStructure', () => {
     ).rejects.toThrow(/cron handler/i);
   });
 
-  it('passes when cron handler starts with module api prefix', async () => {
+  it('passes when cron handler starts with module api prefix and file exists', async () => {
     const dir = makeModule(tmpRoot, 'cronok');
+    writeFile(path.join(dir, 'api/job.ts'), 'export const POST = () => new Response()\n');
     await expect(
       validateModuleStructure(dir, {
         id: 'cronok',
@@ -265,6 +249,19 @@ describe('validateModuleStructure', () => {
         cron: [{ schedule: '0 * * * *', handler: '/api/cronok/job' }],
       }),
     ).resolves.toBeUndefined();
+  });
+
+  it('throws when a cron handler file is missing', async () => {
+    const dir = makeModule(tmpRoot, 'cronmod');
+    await expect(
+      validateModuleStructure(dir, {
+        id: 'cronmod',
+        routes: [],
+        api: [],
+        widgets: [],
+        cron: [{ schedule: '0 9 * * 1', handler: '/api/cronmod/cron/missing' }],
+      }),
+    ).rejects.toThrow(/cron\.missing/);
   });
 });
 

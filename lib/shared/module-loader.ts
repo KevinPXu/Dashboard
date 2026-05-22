@@ -16,6 +16,7 @@ export async function discoverModules(rootDir: string): Promise<LoadedModule[]> 
   } catch {
     return [];
   }
+  entries.sort();
 
   const loaded: LoadedModule[] = [];
   for (const entry of entries) {
@@ -32,14 +33,6 @@ export async function discoverModules(rootDir: string): Promise<LoadedModule[]> 
     }
     await validateModuleStructure(dir, config);
     loaded.push({ dir, config });
-  }
-
-  const ids = new Set<string>();
-  for (const m of loaded) {
-    if (ids.has(m.config.id)) {
-      throw new Error(`Duplicate module id "${m.config.id}"`);
-    }
-    ids.add(m.config.id);
   }
 
   return loaded;
@@ -83,6 +76,10 @@ export async function validateModuleStructure(
     if (!cron.handler.startsWith(expectedPrefix)) {
       throw new Error(`Cron handler "${cron.handler}" must start with "${expectedPrefix}"`);
     }
+    // Derive the same path → filename mapping used for api entries, then assert the file exists.
+    const subpath = cron.handler.slice(expectedPrefix.length); // e.g. "cron/digest"
+    const handlerName = subpath.replace(/\//g, '.'); // e.g. "cron.digest"
+    await assertFileExists(dir, path.join('api', handlerName), ['.ts']);
   }
 }
 
