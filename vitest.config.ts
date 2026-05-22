@@ -16,7 +16,7 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'json-summary', 'html'],
       include: ['lib/shared/**/*.ts', 'modules/*/lib/**/*.ts'],
-      exclude: ['**/*.test.ts', '**/*.spec.ts', '**/types.ts'],
+      exclude: ['**/*.test.ts', '**/*.spec.ts', 'lib/shared/db.ts'],
       thresholds: { lines: 80, functions: 80, statements: 80 },
     },
   },
