@@ -2,9 +2,15 @@ import { ZodError } from 'zod';
 import { createLogger } from './logger';
 import { NotFoundError, ForbiddenError, UnauthorizedError } from './errors';
 
-type Handler = (req: Request, ctx?: { params?: Record<string, string> }) => Promise<Response>;
+type Handler<P extends Record<string, string> = Record<string, string>> = (
+  req: Request,
+  ctx: { params: Promise<P> },
+) => Promise<Response>;
 
-export function withErrorHandler(moduleId: string, handler: Handler): Handler {
+export function withErrorHandler<P extends Record<string, string> = Record<string, string>>(
+  moduleId: string,
+  handler: Handler<P>,
+): Handler<P> {
   const log = createLogger({ moduleId });
   return async (req, ctx) => {
     try {
