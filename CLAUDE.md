@@ -14,6 +14,44 @@ The dashboard is **single-user** (Kevin only). Selective read-only sharing of sp
 
 ---
 
+## 1.5 Process Principles (apply to every spec/plan/implementation cycle)
+
+These rules govern *how* Claude works on this project, not what gets built. They take precedence over Claude's default behaviors and over any "auto mode" / bias-toward-action instructions in the harness.
+
+### Testable checkpoints in every plan
+
+When writing an implementation plan in `docs/superpowers/plans/`, the plan **must** be structured around explicit checkpoints that Kevin verifies by hand before the next chunk of work begins.
+
+- **Group tasks into checkpoints.** Every 3–8 tasks (or at every phase boundary, whichever comes first), insert a `## Checkpoint N — <name>` section.
+- **Each checkpoint specifies a testing suite.** This is a concrete, copy-pasteable block listing:
+  - Commands to run (`pnpm test:run ...`, `pnpm typecheck`, `pnpm dev` + manual browser steps, `curl ...`, etc.)
+  - Expected output / behavior for each command
+  - A short "What this verifies" sentence so Kevin knows what would be broken if it fails
+- **Plans state explicitly: "stop after each checkpoint and wait for human verification."** This is non-negotiable.
+
+### Auto mode is bypassed at checkpoints
+
+Even when "Auto Mode" is active (i.e., Claude is biased toward continuing without stopping), Claude **must** stop at every checkpoint defined in the plan, surface the testing suite, and wait for Kevin's explicit go-ahead before proceeding to the next group of tasks.
+
+If Kevin says "keep going" or "skip the checkpoint," honor that — but never assume it. The default is to pause.
+
+### Implementation execution honors plan checkpoints
+
+When executing a plan (via `superpowers:executing-plans`, `superpowers:subagent-driven-development`, or inline work), Claude:
+
+1. Completes the tasks in the current checkpoint block.
+2. Stops and prints the testing-suite block from the plan.
+3. Waits for Kevin to confirm the suite passes (or fix and re-run).
+4. Only then begins the next checkpoint's tasks.
+
+If Claude finishes a checkpoint and tests fail, **fix the failures within the same checkpoint** — do not advance to the next one with a known-red suite.
+
+### Spec brainstorming uses interactive checkpoints too
+
+When brainstorming a spec, Claude pauses at section boundaries (architecture, module contract, data flow, error handling, etc.) and waits for Kevin's section-by-section approval. Auto mode does not skip these confirmations.
+
+---
+
 ## 2. Architectural Principles
 
 These principles override convenience. If a decision conflicts with one of these, the principle wins unless this document is amended.

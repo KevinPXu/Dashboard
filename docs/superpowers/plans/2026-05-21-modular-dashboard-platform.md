@@ -39,6 +39,14 @@
 - Commits use Conventional Commits prefixes (`feat:`, `chore:`, `test:`, `fix:`).
 - Coverage gate (80% on `lib/`) applies to modules' `lib/`. Platform `lib/shared/` is also tested but not strictly gated; aim to keep it above 80% in practice.
 
+## Checkpoint discipline
+
+This plan is structured around **mandatory human-verified checkpoints** at the end of every phase. Per `CLAUDE.md` §1.5:
+
+- **Auto mode does NOT skip checkpoints.** Even if the harness biases toward continuing, Claude must stop at every `## Checkpoint N` block, surface its testing suite to Kevin, and wait for explicit confirmation before starting the next phase.
+- **The testing suite is the gate.** A checkpoint is only "passed" when every command in its testing suite produces the expected output. Failures must be fixed *within the current phase* before advancing.
+- **Manual verification is part of the suite.** Where a checkpoint says "open browser and check X," that step is as load-bearing as the automated commands. Do not advance on automated-only passes when manual steps remain.
+
 ---
 
 # Phase 1: Foundation
@@ -475,6 +483,42 @@ git commit -m "chore: add docker-compose Postgres for local development"
 
 ---
 
+## Checkpoint 1 — Foundation tools installed and working
+
+**Stop here. Do not start Phase 2 until every item below passes.**
+
+**Testing suite:**
+
+```bash
+# 1. Toolchain sanity
+pnpm install --frozen-lockfile
+pnpm format:check
+pnpm lint
+pnpm typecheck
+
+# 2. Build pipeline
+pnpm build
+
+# 3. Test runners are wired
+pnpm test:run                 # zero or one trivial test — should exit 0
+pnpm exec playwright --version
+
+# 4. Local Postgres
+pnpm db:up
+docker compose ps             # dashboard-postgres should be "healthy"
+docker exec -i dashboard-postgres psql -U dashboard -d dashboard -c "SELECT 1;"
+```
+
+**Manual verification:**
+
+1. Run `pnpm dev`. Open http://localhost:3000. The default Next.js page (or our empty page) renders without console errors.
+2. Open `.env.local` and confirm `DATABASE_URL`, `DASHBOARD_PASSWORD`, `SHARE_LINK_SIGNING_KEY`, and `SESSION_COOKIE_SECRET` all have non-placeholder values.
+3. Stop the dev server (Ctrl-C).
+
+**What this verifies:** the toolchain (Next.js, TypeScript strict, Tailwind, shadcn, ESLint, Prettier, Vitest, Playwright, pnpm scripts, docker-compose Postgres) is installed and functional. No platform logic exists yet — that's the next phase.
+
+---
+
 # Phase 2: Platform DB & types
 
 Drizzle setup with platform schema first (share_links, widget_layouts, settings, sessions). Module schemas come later via the module-loader pattern.
@@ -834,6 +878,41 @@ Expected: three tables listed (share_links, widget_layouts, settings).
 git add platform/db/schema.ts platform/db/migrations/
 git commit -m "feat: add platform Postgres schema (share_links, widget_layouts, settings)"
 ```
+
+---
+
+## Checkpoint 2 — Platform DB schema + ModuleConfig type land cleanly
+
+**Stop here. Do not start Phase 3 until every item below passes.**
+
+**Testing suite:**
+
+```bash
+# 1. Type and lint
+pnpm typecheck
+pnpm lint
+
+# 2. ModuleConfig Zod validation
+pnpm test:run lib/shared/types.test.ts
+# Expected: 5 tests pass
+
+# 3. Platform schema generated and applied
+ls platform/db/migrations/    # should contain at least one .sql file
+pnpm db:migrate
+# Expected: "no migrations to apply" if already current; otherwise applies cleanly
+
+# 4. Schema is in Postgres
+docker exec -i dashboard-postgres psql -U dashboard -d dashboard -c "\dn"
+# Expected: includes "platform"
+docker exec -i dashboard-postgres psql -U dashboard -d dashboard -c "\dt platform.*"
+# Expected: share_links, widget_layouts, settings (sessions added in Phase 4)
+```
+
+**Manual verification:**
+
+1. `pnpm db:studio` opens Drizzle Studio. Confirm `platform.share_links`, `platform.widget_layouts`, `platform.settings` tables are visible and empty.
+
+**What this verifies:** Drizzle is correctly configured, the platform schema exists in Postgres, and the runtime ModuleConfig validator catches the rules Kevin cares about (kebab-case ids, schema-name match, cron validity).
 
 ---
 
@@ -1439,6 +1518,43 @@ git commit -m "feat: add ESLint rule banning cross-module imports"
 
 ---
 
+## Checkpoint 3 — Module loader, env validator, and cross-module ESLint rule work
+
+**Stop here. Do not start Phase 4 until every item below passes.**
+
+**Testing suite:**
+
+```bash
+# 1. Loader unit tests (uses tmp filesystem fixtures)
+pnpm test:run lib/shared/module-loader.test.ts
+# Expected: all module-loader tests pass
+
+# 2. Env validator
+pnpm test:run lib/shared/env-validator.test.ts
+# Expected: 3 tests pass
+
+# 3. ESLint custom rule
+node eslint-rules/no-cross-module-imports.test.js
+# Expected: "no-cross-module-imports tests passed"
+
+# 4. Full lint pass against the repo
+pnpm lint
+# Expected: no errors
+
+# 5. All unit tests still pass
+pnpm test:run
+# Expected: every test we have so far passes
+```
+
+**Manual verification:**
+
+1. Read `lib/shared/module-loader.ts` and confirm the file references the same `ModuleConfigSchema` we defined in Phase 2 (no duplication).
+2. Confirm `eslint.config.mjs` includes the `local/no-cross-module-imports` rule.
+
+**What this verifies:** the manifest discovery + structural validation + env-var validation + cross-module-import enforcement are all in place. The platform now has the rails that every module will run on.
+
+---
+
 # Phase 4: Auth & sessions
 
 Single-user password auth with signed session cookies. The `getSession()` abstraction returns either an owner session or a guest session (the latter set by share-link entry, implemented in Phase 7).
@@ -1943,6 +2059,38 @@ git commit -m "feat: add auth middleware redirecting unauthenticated requests to
 
 ---
 
+## Checkpoint 4 — Password login + session middleware actually gate the app
+
+**Stop here. Do not start Phase 5 until every item below passes.**
+
+**Testing suite:**
+
+```bash
+# 1. All auth-layer unit tests
+pnpm test:run lib/shared/password.test.ts lib/shared/session-token.test.ts lib/shared/auth.test.ts
+# Expected: every test passes
+
+# 2. Sessions table exists
+docker exec -i dashboard-postgres psql -U dashboard -d dashboard -c "\dt platform.sessions"
+# Expected: row for platform.sessions
+
+# 3. Full lint + typecheck + tests
+pnpm lint && pnpm typecheck && pnpm test:run
+```
+
+**Manual verification (do these in a fresh incognito window):**
+
+1. `pnpm dev`. Visit http://localhost:3000/. Expected: redirected to `/login?next=%2F`.
+2. Submit the login form with the WRONG password. Expected: stays on `/login`, no session cookie set, no `dashboard_session` cookie present in DevTools.
+3. Submit the form with the correct password from `.env.local`. Expected: redirected to `/`. DevTools shows `dashboard_session` cookie set httpOnly.
+4. Open `psql` and `SELECT id, created_at, expires_at FROM platform.sessions;` — there is exactly one row matching the just-issued session.
+5. Visit `/login` again while signed in. Expected: nothing crashes (the page renders; we don't auto-redirect away yet — that's fine).
+6. Delete the cookie manually in DevTools. Reload `/`. Expected: redirected back to `/login`.
+
+**What this verifies:** the password gate is real, sessions are persisted server-side, the cookie is signed/verified, and middleware properly bounces unauthenticated traffic.
+
+---
+
 # Phase 5: Shell UI
 
 Layout with sidebar, home page placeholder, admin page skeleton. Sidebar built from the module registry.
@@ -2156,6 +2304,30 @@ Visit `/admin`. Expected: page renders, sign out works.
 git add app/\(shell\)/admin/
 git commit -m "feat: add admin skeleton with module list and logout"
 ```
+
+---
+
+## Checkpoint 5 — Sidebar shell and admin skeleton render correctly
+
+**Stop here. Do not start Phase 6 until every item below passes.**
+
+**Testing suite:**
+
+```bash
+pnpm lint && pnpm typecheck && pnpm test:run
+pnpm build
+# Expected: build completes with no errors
+```
+
+**Manual verification:**
+
+1. `pnpm dev` and sign in.
+2. `/` shows the sidebar on the left with `Home` and `Admin` items only (no modules yet). The right pane shows the placeholder "Home" heading.
+3. Sidebar links navigate correctly: clicking `Admin` highlights it and shows the admin page.
+4. `/admin` lists "No modules installed." (true at this point) and shows a working "Sign out" button.
+5. Click "Sign out". Expected: redirected to `/login`, cookie cleared.
+
+**What this verifies:** the shell layout is in place, the sidebar is driven by the module registry (not hardcoded), and admin/auth roundtripping works.
 
 ---
 
@@ -2552,6 +2724,32 @@ Expected: clean build.
 git add app/error.tsx components/shell/boundaries/
 git commit -m "feat: add shell, module, and widget error boundaries"
 ```
+
+---
+
+## Checkpoint 6 — Logger, error wrapper, and boundaries are testable
+
+**Stop here. Do not start Phase 7 until every item below passes.**
+
+**Testing suite:**
+
+```bash
+pnpm test:run lib/shared/logger.test.ts lib/shared/with-error-handler.test.ts
+# Expected: all logger + error-handler tests pass
+
+pnpm test:run         # everything still green
+pnpm lint && pnpm typecheck
+pnpm build            # boundaries must compile as client components
+```
+
+**Manual verification (deliberate-break exercise):**
+
+1. Temporarily edit `app/(shell)/admin/page.tsx` and add `throw new Error('boom — verifying boundary');` at the top of the component.
+2. `pnpm dev`, sign in, visit `/admin`. Expected: a friendly error UI from `app/error.tsx` (NOT the Next.js default error overlay in prod — for dev, the overlay may appear; that's fine. The point is the shell didn't white-screen.)
+3. Revert the `throw`.
+4. Visit any URL — confirm normal behavior restored.
+
+**What this verifies:** the logging convention emits structured JSON, the error wrapper maps errors to typed responses, and the boundary components actually catch.
 
 ---
 
@@ -3177,6 +3375,36 @@ git commit -m "feat: add admin UI for creating and revoking share links"
 
 ---
 
+## Checkpoint 7 — Share links: end-to-end create, visit, revoke
+
+**Stop here. Do not start Phase 8 until every item below passes.**
+
+**Note:** At this point we still have no modules with `shareable: true` routes, so the admin "Create" form will say "No shareable routes available." To fully exercise the share flow you'll need a module — that's done in Phase 11. For now, verify the slice we have here.
+
+**Testing suite:**
+
+```bash
+# Unit tests
+pnpm test:run lib/shared/share-links.test.ts
+# Expected: all signing/verification tests pass
+
+# Integration tests
+DATABASE_URL="postgres://dashboard:dashboard@localhost:5432/dashboard" pnpm test:integration
+# Expected: every integration test passes (share-links scenarios green)
+
+pnpm lint && pnpm typecheck && pnpm test:run
+pnpm build
+```
+
+**Manual verification:**
+
+1. `pnpm dev`, sign in, visit `/admin/share-links`. Expected: page renders. "Create" section shows "No shareable routes available." "Active links" shows "No active links."
+2. Visit `/share/garbage-token`. Expected: the "Link not available" not-found page (NOT the login page — the middleware exempts `/share/*`).
+
+**What this verifies:** share-link signing/verification/revocation works at the unit and DB layers, and the admin UI is wired. The end-to-end flow gets a full smoke test in Phase 11.
+
+---
+
 # Phase 8: Home widget grid
 
 react-grid-layout with persistence in `platform.widget_layouts`.
@@ -3547,6 +3775,32 @@ git commit -m "feat: add draggable resizable widget grid on home page"
 
 ---
 
+## Checkpoint 8 — Home widget grid renders (empty) and persists
+
+**Stop here. Do not start Phase 9 until every item below passes.**
+
+**Testing suite:**
+
+```bash
+pnpm test:run lib/shared/widgets.test.ts
+# Expected: layout builder tests pass
+
+DATABASE_URL="postgres://dashboard:dashboard@localhost:5432/dashboard" pnpm test:integration
+# Expected: widget-layout-store integration tests pass
+
+pnpm lint && pnpm typecheck && pnpm test:run
+pnpm build
+```
+
+**Manual verification:**
+
+1. `pnpm dev`, sign in. Visit `/`. Expected: home renders without errors; the grid container is empty (no modules yet) — no widgets displayed.
+2. `docker exec -i dashboard-postgres psql -U dashboard -d dashboard -c "SELECT * FROM platform.widget_layouts;"` — likely empty row at this point; that's correct because there are no widgets to lay out.
+
+**What this verifies:** react-grid-layout is wired, layout persistence round-trips, and the home page composes correctly even with zero widgets. Full draggable behavior gets exercised in Phase 11 when the smoke module adds a real widget.
+
+---
+
 # Phase 9: Cron aggregation
 
 A build-time script reads all module manifests and writes their cron entries into `vercel.json`.
@@ -3681,6 +3935,32 @@ Expected: `vercel.json` is written (likely empty `{}` since no modules yet). Bui
 git add scripts/ package.json
 git commit -m "feat: aggregate module cron entries into vercel.json at build time"
 ```
+
+---
+
+## Checkpoint 9 — Cron aggregator emits vercel.json correctly
+
+**Stop here. Do not start Phase 10 until every item below passes.**
+
+**Testing suite:**
+
+```bash
+pnpm test:run scripts/build-vercel-config.test.ts
+# Expected: 2 tests pass
+
+pnpm build:vercel-config
+cat vercel.json
+# Expected: valid JSON. With no modules, content is "{}\n"
+
+pnpm build
+# Expected: prebuild ran, vercel.json regenerated, full build succeeded
+```
+
+**Manual verification:**
+
+1. Open `vercel.json`. Confirm the file exists and is valid JSON.
+
+**What this verifies:** the build-time cron aggregation script is wired into `prebuild`, runs cleanly with no modules, and produces a valid `vercel.json` skeleton.
 
 ---
 
@@ -4006,6 +4286,44 @@ git commit -m "feat: add pnpm new-module CLI for scaffolding modules"
 
 ---
 
+## Checkpoint 10 — `pnpm new-module` produces a valid scaffold
+
+**Stop here. Do not start Phase 11 until every item below passes.**
+
+**Testing suite:**
+
+```bash
+pnpm test:run scripts/new-module.test.ts
+# Expected: 2 tests pass
+
+# Dry-run scaffold a throwaway module to verify the real CLI works
+pnpm new-module scratch-mod <<EOF
+Scratch Module
+Box
+Throwaway for checkpoint verification
+EOF
+
+ls modules/scratch-mod/
+# Expected: module.config.ts, routes/, api/, lib/, db/, widgets/, README.md present
+
+cat modules/scratch-mod/module.config.ts
+# Expected: id is scratch-mod, schema is scratch_mod, name is "Scratch Module"
+
+pnpm test:run modules/scratch-mod/lib/queries.test.ts
+# Expected: 1 test passes (the placeholder ping test)
+
+# Clean up the throwaway module
+rm -rf modules/scratch-mod
+```
+
+**Manual verification:**
+
+1. Confirm `modules/_template/` still exists (the cleanup above only removed `scratch-mod`).
+
+**What this verifies:** the scaffolding template and CLI produce a structurally valid module that the loader will accept and whose placeholder tests pass.
+
+---
+
 # Phase 11: End-to-end smoke module
 
 A trivial `modules/_smoke/` that exercises every extension point: a route, an API, a widget, and a cron stub. Confirms the whole platform composes correctly before any real module is built.
@@ -4255,6 +4573,42 @@ git commit -m "test: add Playwright E2E smoke covering login, module page, and m
 
 ---
 
+## Checkpoint 11 — Smoke module exercises every extension point end-to-end
+
+**This is the big integration gate. Stop here. Do not start Phase 12 until every item below passes.**
+
+**Testing suite:**
+
+```bash
+# 1. All tests
+pnpm lint && pnpm typecheck && pnpm test:run
+DATABASE_URL="postgres://dashboard:dashboard@localhost:5432/dashboard" pnpm test:integration
+
+# 2. Playwright E2E
+pnpm db:up && pnpm db:migrate
+DATABASE_URL="postgres://dashboard:dashboard@localhost:5432/dashboard" pnpm test:e2e
+# Expected: all 3 platform-smoke tests pass
+
+# 3. Build sees the smoke module's cron in vercel.json
+pnpm build
+cat vercel.json
+# Expected: crons array includes { "path": "/api/smoke/cron/yearly", "schedule": "0 0 1 1 *" }
+```
+
+**Manual verification (golden path through every extension point):**
+
+1. `pnpm dev`, sign in.
+2. **Sidebar:** "Smoke Test" appears.
+3. **Module page:** click "Smoke Test" — `/smoke` renders the placeholder page with the module name as heading.
+4. **Module API:** `curl -b "<cookie>" http://localhost:3000/api/smoke/health` returns `{"status":"ok","module":"smoke"}`. (Easiest: open DevTools → Network on `/smoke`, copy cookie header.)
+5. **Widget on home:** visit `/`. "Smoke Hello" widget appears in the grid. Drag it; resize it. Refresh the page — layout persists in the new position.
+6. **Share link flow:** Visit `/admin/share-links`. There still aren't shareable routes for the smoke module (its routes have `shareable: false` by default) — verify the "no shareable routes" state instead. If you want to test the full flow, temporarily edit `modules/smoke/module.config.ts` to set `shareable: { mode: 'read-only' }` on the `/` route, create a share link, open it in an incognito window, confirm read-only banner is visible, then revoke the link and undo the manifest edit.
+7. **Error boundary:** temporarily throw an error inside `modules/smoke/routes/index.tsx`'s default export. Reload `/smoke` — module boundary fallback appears; the rest of the dashboard (sidebar, home) still works. Revert.
+
+**What this verifies:** the platform composes end-to-end. Every extension point in the module contract (route, API, widget, cron, error boundary, manifest validation, sidebar registration) functions as designed. The platform is ready to host real feature modules.
+
+---
+
 # Phase 12: CI & deploy
 
 GitHub Actions, Vercel config sanity check.
@@ -4455,6 +4809,41 @@ See `CLAUDE.md` for the platform contract.
 git add README.md
 git commit -m "docs: replace README with project quick-start and command reference"
 ```
+
+---
+
+## Checkpoint 12 — CI is green on a real PR
+
+**Final checkpoint. Do not consider the platform "done" until this passes.**
+
+**Testing suite:**
+
+```bash
+# 1. Local everything-green
+pnpm lint && pnpm typecheck && pnpm test:run
+DATABASE_URL="postgres://dashboard:dashboard@localhost:5432/dashboard" pnpm test:integration
+DATABASE_URL="postgres://dashboard:dashboard@localhost:5432/dashboard" pnpm test:e2e
+pnpm build
+
+# 2. Push a branch and observe CI
+git checkout -b platform-bootstrap
+git push -u origin platform-bootstrap
+
+# 3. Open the PR (or just push directly to main if branch protection isn't set up yet)
+gh pr create --title "Platform bootstrap" --body "Implements the platform per docs/superpowers/plans/2026-05-21-modular-dashboard-platform.md"
+
+# 4. Wait for CI
+gh pr checks --watch
+# Expected: all 5 jobs (lint-and-typecheck, unit-tests, integration-tests, build, e2e) green
+```
+
+**Manual verification:**
+
+1. On GitHub, open the PR and confirm all 5 checks display green.
+2. Click into the e2e job logs and skim — confirm Playwright actually ran the smoke tests (not skipped).
+3. Confirm GitHub branch protection on `main` requires PRs and passing checks (Settings → Branches).
+
+**What this verifies:** the platform is shippable. CI catches what should be caught, the deploy pipeline works, and Kevin has the gates he needs before changes hit `main`.
 
 ---
 
