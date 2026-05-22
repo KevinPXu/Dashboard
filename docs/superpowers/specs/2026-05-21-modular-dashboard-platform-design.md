@@ -106,7 +106,7 @@ Dashboard/
 │   ├── db.ts
 │   ├── share-links.ts
 │   ├── cron.ts
-│   ├── middleware.ts
+│   ├── proxy.ts                 ← Next 16+ proxy convention (was middleware.ts)
 │   ├── module-loader.ts
 │   └── types.ts
 ├── platform/db/

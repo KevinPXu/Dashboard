@@ -3140,12 +3140,12 @@ export default function ShareNotFound() {
 }
 ```
 
-- [ ] **Step 5: Update middleware to block writes from share-token requests**
+- [ ] **Step 5: Update proxy to block writes from share-token requests**
 
-Edit `middleware.ts` — add a write-block for `/share/*` subrequests if such routes ever existed (defense-in-depth):
+Edit `proxy.ts` — add a write-block for `/share/*` subrequests if such routes ever existed (defense-in-depth):
 
 ```ts
-// Add inside middleware(), before the auth check:
+// Add inside proxy(), before the auth check:
 if (pathname.startsWith('/share/') && req.method !== 'GET' && req.method !== 'HEAD') {
   return new NextResponse('Forbidden', { status: 403 });
 }
@@ -3154,7 +3154,7 @@ if (pathname.startsWith('/share/') && req.method !== 'GET' && req.method !== 'HE
 - [ ] **Step 6: Commit**
 
 ```bash
-git add app/share lib/shared/share-render.ts lib/shared/share-links.ts middleware.ts
+git add app/share lib/shared/share-render.ts lib/shared/share-links.ts proxy.ts
 git commit -m "feat: add /share/[token] entry route with read-only module rendering"
 ```
 

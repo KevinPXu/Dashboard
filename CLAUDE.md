@@ -125,7 +125,7 @@ Dashboard/
 │   ├── db.ts                    ← Drizzle client, schema composition
 │   ├── share-links.ts           ← sign / verify / revoke
 │   ├── cron.ts                  ← cron registration helper
-│   ├── middleware.ts            ← auth gate, guest write-block
+│   ├── proxy.ts                 ← auth gate, guest write-block (Next 16 renamed from middleware.ts)
 │   ├── module-loader.ts         ← discover & validate modules at build time
 │   └── types.ts                 ← ModuleConfig type, shared interfaces
 ├── platform/                    ← platform-owned DB schema & migrations
