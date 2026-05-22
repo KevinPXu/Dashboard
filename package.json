@@ -15,7 +15,10 @@
     "test:coverage": "vitest --run --coverage",
     "test:integration": "vitest --run --dir tests/integration",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:logs": "docker compose logs -f postgres"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
