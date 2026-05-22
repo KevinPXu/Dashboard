@@ -10,6 +10,9 @@ export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'))) {
+    if (pathname.startsWith('/share/') && req.method !== 'GET' && req.method !== 'HEAD') {
+      return new NextResponse('Forbidden', { status: 403 });
+    }
     return NextResponse.next();
   }
 
