@@ -12,3 +12,4 @@ pnpm-lock.yaml
 # Protected docs (do not reformat)
 CLAUDE.md
 docs/
+next-env.d.ts
