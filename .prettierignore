@@ -1,0 +1,14 @@
+node_modules
+.next
+.turbo
+dist
+out
+coverage
+playwright-report
+test-results
+*.log
+pnpm-lock.yaml
+
+# Protected docs (do not reformat)
+CLAUDE.md
+docs/
