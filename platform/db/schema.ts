@@ -30,6 +30,14 @@ export const settings = platform.table('settings', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const sessions = platform.table('sessions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  ip: text('ip'),
+  userAgent: text('user_agent'),
+});
+
 export type WidgetLayoutEntry = {
   moduleId: string;
   widgetId: string;
