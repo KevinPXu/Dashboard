@@ -1,0 +1,25 @@
+import type { ModuleConfig } from '@/lib/shared/types';
+
+export default {
+  id: 'smoke',
+  name: 'Smoke Test',
+  version: '0.1.0',
+  description: 'Validates the platform end-to-end',
+  enabled: true,
+  icon: 'Box',
+  nav: { label: 'Smoke Test', order: 100 },
+  routes: [{ path: '/', component: 'routes/index', shareable: false }],
+  api: [{ path: '/health', methods: ['GET'] }],
+  widgets: [
+    {
+      id: 'hello',
+      name: 'Smoke Hello',
+      defaultSize: { w: 4, h: 2 },
+      minSize: { w: 2, h: 1 },
+      component: 'widgets/Placeholder',
+    },
+  ],
+  db: { schema: 'smoke' },
+  cron: [{ schedule: '0 0 1 1 *', handler: '/api/smoke/cron/yearly' }],
+  env: { required: [], optional: [] },
+} satisfies ModuleConfig;

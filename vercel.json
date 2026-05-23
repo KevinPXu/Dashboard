@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/smoke/cron/yearly",
+      "schedule": "0 0 1 1 *"
+    }
+  ]
+}

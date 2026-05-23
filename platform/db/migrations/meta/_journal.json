@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1779413588739,
+      "tag": "0000_pale_gambit",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1779421388031,
+      "tag": "0001_chemical_vindicator",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779502591064,
+      "tag": "0002_strong_marvel_apes",
+      "breakpoints": true
+    }
+  ]
+}

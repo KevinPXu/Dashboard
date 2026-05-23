@@ -1,0 +1,5 @@
+import { withErrorHandler } from '@/lib/shared/with-error-handler';
+
+export const GET = withErrorHandler('{{ID}}', async () => {
+  return Response.json({ status: 'ok', module: '{{ID}}' });
+});

@@ -1,0 +1,21 @@
+node_modules
+.next
+.turbo
+dist
+out
+coverage
+playwright-report
+test-results
+*.log
+pnpm-lock.yaml
+
+# Protected docs (do not reformat)
+CLAUDE.md
+docs/
+next-env.d.ts
+
+# Drizzle migration output (generator-managed)
+platform/db/migrations/
+
+# Module scaffolding templates (contain {{PLACEHOLDER}} that breaks parsers)
+modules/_template/

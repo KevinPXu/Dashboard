@@ -1,0 +1,21 @@
+import type { ModuleConfig } from '@/lib/shared/types';
+
+export default {
+  id: '{{ID}}',
+  name: '{{NAME}}',
+  version: '0.1.0',
+  description: '{{DESCRIPTION}}',
+  enabled: true,
+  icon: '{{ICON}}',
+  nav: { label: '{{NAME}}', order: 100 },
+  routes: [
+    { path: '/', component: 'routes/index', shareable: false },
+  ],
+  api: [
+    { path: '/health', methods: ['GET'] },
+  ],
+  widgets: [],
+  db: { schema: '{{SCHEMA}}' },
+  cron: [],
+  env: { required: [], optional: [] },
+} satisfies ModuleConfig;
