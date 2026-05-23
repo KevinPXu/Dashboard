@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "build:vercel-config": "tsx scripts/build-vercel-config.ts",
+    "new-module": "tsx scripts/new-module.ts",
     "prebuild": "pnpm build:vercel-config",
     "start": "next start",
     "lint": "eslint .",
