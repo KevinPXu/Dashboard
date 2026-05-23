@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "build:vercel-config": "tsx scripts/build-vercel-config.ts",
     "new-module": "tsx scripts/new-module.ts",
     "prebuild": "pnpm build:vercel-config",
