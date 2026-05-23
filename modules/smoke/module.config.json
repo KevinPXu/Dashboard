@@ -18,6 +18,6 @@
     }
   ],
   "db": { "schema": "smoke" },
-  "cron": [{ "schedule": "0 0 1 1 *", "handler": "/api/smoke/cron/yearly" }],
+  "cron": [],
   "env": { "required": [], "optional": [] }
 }
