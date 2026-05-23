@@ -18,11 +18,18 @@ export async function loadModuleExport<T = unknown>(
   relativePath: string,
 ): Promise<T> {
   // Try .tsx first (UI components), then .ts (API handlers, libs).
+  // webpackInclude excludes *.test.ts(x) so vitest doesn't get bundled.
   try {
-    return (await import(`@/modules/${moduleId}/${relativePath}.tsx`)) as T;
+    return (await import(
+      /* webpackInclude: /(?<!\.test)\.tsx$/ */
+      `@/modules/${moduleId}/${relativePath}.tsx`
+    )) as T;
   } catch (errTsx) {
     try {
-      return (await import(`@/modules/${moduleId}/${relativePath}.ts`)) as T;
+      return (await import(
+        /* webpackInclude: /(?<!\.test)\.ts$/ */
+        `@/modules/${moduleId}/${relativePath}.ts`
+      )) as T;
     } catch (errTs) {
       throw new Error(
         `Failed to load module export @/modules/${moduleId}/${relativePath}: ` +
