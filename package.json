@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:vercel-config": "tsx scripts/build-vercel-config.ts",
+    "prebuild": "pnpm build:vercel-config",
     "start": "next start",
     "lint": "eslint .",
     "format": "prettier --write .",
@@ -70,6 +72,7 @@
     "prettier": "^3.8.3",
     "prettier-plugin-tailwindcss": "^0.8.0",
     "tailwindcss": "^4",
+    "tsx": "^4.22.3",
     "typescript": "^5",
     "vitest": "^4.1.7"
   }
