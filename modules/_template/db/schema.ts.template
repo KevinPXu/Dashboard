@@ -1,0 +1,15 @@
+import { pgSchema, uuid, text, timestamp } from 'drizzle-orm/pg-core';
+
+export const {{SCHEMA_CAMEL}} = pgSchema('{{SCHEMA}}');
+
+// Add tables here, e.g.:
+// export const items = {{SCHEMA_CAMEL}}.table('items', {
+//   id: uuid('id').primaryKey().defaultRandom(),
+//   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+// });
+
+// Placeholder kept so generated migrations have something. Delete and add real tables.
+export const _placeholder = {{SCHEMA_CAMEL}}.table('_placeholder', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});

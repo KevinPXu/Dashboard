@@ -1,0 +1,13 @@
+# {{NAME}} ({{ID}})
+
+{{DESCRIPTION}}
+
+## Files
+
+- `module.config.ts` — manifest
+- `routes/` — pages mounted at `/{{ID}}/*`
+- `api/` — API handlers mounted at `/api/{{ID}}/*`
+- `lib/` — module-private logic (TDD-strict, ≥80% coverage)
+- `db/` — Drizzle schema + migrations
+- `widgets/` — home-page widgets owned by this module
+- `tests/` — integration tests
