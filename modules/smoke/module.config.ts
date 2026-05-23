@@ -8,12 +8,8 @@ export default {
   enabled: true,
   icon: 'Box',
   nav: { label: 'Smoke Test', order: 100 },
-  routes: [
-    { path: '/', component: 'routes/index', shareable: false },
-  ],
-  api: [
-    { path: '/health', methods: ['GET'] },
-  ],
+  routes: [{ path: '/', component: 'routes/index', shareable: false }],
+  api: [{ path: '/health', methods: ['GET'] }],
   widgets: [
     {
       id: 'hello',

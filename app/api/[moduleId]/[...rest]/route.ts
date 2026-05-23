@@ -1,15 +1,17 @@
 import { notFound } from 'next/navigation';
-import * as path from 'node:path';
 import { getModuleById } from '@/lib/shared/registry';
+import { loadModuleExport } from '@/lib/shared/module-import';
 
 async function handle(method: string, moduleId: string, rest: string[], req: Request) {
   const mod = await getModuleById(moduleId);
   if (!mod) notFound();
   const handlerName = rest.length === 0 ? 'index' : rest.join('.');
-  const handlerPath = path.join(mod.dir, 'api', handlerName);
   let imported: Record<string, (req: Request) => Promise<Response>>;
   try {
-    imported = (await import(/* @vite-ignore */ handlerPath)) as never;
+    imported = await loadModuleExport<Record<string, (req: Request) => Promise<Response>>>(
+      moduleId,
+      `api/${handlerName}`,
+    );
   } catch {
     return new Response('Not found', { status: 404 });
   }

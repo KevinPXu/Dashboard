@@ -1,4 +1,4 @@
-import { pgSchema, uuid, text, timestamp } from 'drizzle-orm/pg-core';
+import { pgSchema, uuid, timestamp } from 'drizzle-orm/pg-core';
 
 export const smoke = pgSchema('smoke');
 
