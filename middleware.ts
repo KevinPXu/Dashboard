@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { verifySessionTokenEdge } from '@/lib/shared/session-token-edge';
+import { verifySessionTokenEdge } from './lib/shared/session-token-edge';
 
 // Inlined to avoid pulling auth.ts (and node:crypto via session-token.ts) into Edge.
 const SESSION_COOKIE = 'dashboard_session';
