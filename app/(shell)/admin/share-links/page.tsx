@@ -2,6 +2,8 @@ import { Button } from '@/components/ui/button';
 import { getShareableRoutes, listShareLinks, revokeLinkAction } from './actions';
 import { CreateForm } from './CreateForm';
 
+export const dynamic = 'force-dynamic';
+
 export default async function ShareLinksPage() {
   const [routes, links] = await Promise.all([getShareableRoutes(), listShareLinks()]);
 

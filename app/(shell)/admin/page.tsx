@@ -2,6 +2,8 @@ import { getModules } from '@/lib/shared/registry';
 import { logoutAction } from './actions';
 import { Button } from '@/components/ui/button';
 
+export const dynamic = 'force-dynamic';
+
 export default async function AdminPage() {
   const modules = await getModules();
   return (

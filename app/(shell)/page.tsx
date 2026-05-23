@@ -4,6 +4,8 @@ import { buildDefaultLayout } from '@/lib/shared/widgets';
 import { renderAllWidgets } from '@/lib/shared/widget-render';
 import { HomeGrid } from './HomeGrid';
 
+export const dynamic = 'force-dynamic';
+
 export default async function HomePage() {
   const modules = await getModules();
   const persisted = await loadLayout();
