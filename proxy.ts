@@ -6,7 +6,7 @@ const SESSION_COOKIE = 'dashboard_session';
 
 const PUBLIC_PATHS = ['/login', '/share', '/_next', '/favicon.ico', '/api/health'];
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'))) {
