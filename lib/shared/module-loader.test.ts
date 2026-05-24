@@ -297,8 +297,8 @@ describe('validateModuleStructure', () => {
   });
 
   it('rejects when an API handler is missing a declared method export', async () => {
-    const dir = await fsp.mkdtemp(path.join(projectTmpBase, 'mod-'));
-    await fsp.mkdir(path.join(dir, 'api'));
+    const dir = path.join(tmpRoot, 'method-export-check');
+    await fsp.mkdir(path.join(dir, 'api'), { recursive: true });
     await fsp.writeFile(
       path.join(dir, 'api', 'health.ts'),
       'export async function GET(){ return new Response("ok") }',
