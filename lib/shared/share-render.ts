@@ -21,6 +21,10 @@ export async function renderSharedModuleRoute(
     }) => Promise<ReactElement> | ReactElement;
   }>(moduleId, routeDef.component);
 
+  // shareScope is passed to the module's default export so the module can call
+  // getSession(shareScope) to receive { role: 'guest', shareScope }. Without
+  // that argument, getSession() returns null — guest detection relies on the
+  // 'dashboard_share' cookie set in app/share/[token]/page.tsx for proxy.ts.
   const shareScope = { moduleId, route, tokenId };
   return imported.default({ shareScope });
 }

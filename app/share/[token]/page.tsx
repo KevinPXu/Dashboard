@@ -1,7 +1,10 @@
+import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { resolveShareToken } from '@/lib/shared/share-links';
 import { ModuleErrorBoundary } from '@/components/shell/boundaries/ModuleErrorBoundary';
 import { renderSharedModuleRoute } from '@/lib/shared/share-render';
+
+const SHARE_COOKIE = 'dashboard_share';
 
 type Props = { params: Promise<{ token: string }> };
 
@@ -9,6 +12,17 @@ export default async function SharePage({ params }: Props) {
   const { token } = await params;
   const payload = await resolveShareToken(token);
   if (!payload) notFound();
+
+  const cookieStore = await cookies();
+  cookieStore.set(SHARE_COOKIE, payload.tokenId, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: payload.exp
+      ? Math.max(0, payload.exp - Math.floor(Date.now() / 1000))
+      : 60 * 60 * 24,
+  });
 
   return (
     <main className="min-h-screen bg-white p-6">
