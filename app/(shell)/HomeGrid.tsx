@@ -28,6 +28,10 @@ export function HomeGrid({ initialLayout, widgets }: Props) {
   );
 
   function flush() {
+    // Serialize writes: if a save is already in flight, leave the latest layout
+    // in pendingRef — the in-flight save re-flushes on completion. This prevents
+    // a slower earlier save from landing after a newer one.
+    if (inflightRef.current) return;
     timerRef.current = null;
     const next = pendingRef.current;
     pendingRef.current = null;
