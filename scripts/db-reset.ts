@@ -18,10 +18,17 @@ async function main() {
         schemas.push(id.replace(/-/g, '_'));
       }
     }
+    // The `drizzle` schema holds __drizzle_migrations (drizzle-kit's applied-
+    // migration ledger). It MUST be dropped too — otherwise the surviving
+    // ledger makes `drizzle-kit migrate` skip the platform migrations after a
+    // reset, leaving the platform schema un-created.
+    schemas.push('drizzle');
     for (const schema of schemas) {
       console.log(`→ DROP SCHEMA IF EXISTS ${schema} CASCADE`);
       await sql.unsafe(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
     }
+    // Belt-and-suspenders for older drizzle-kit versions that stored the ledger
+    // in the public schema instead of the dedicated `drizzle` schema.
     await sql.unsafe('DROP TABLE IF EXISTS public.__drizzle_migrations');
   } finally {
     await sql.end();
