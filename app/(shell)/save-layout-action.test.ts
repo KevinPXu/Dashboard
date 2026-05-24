@@ -1,5 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 
+// The partial mock below uses importActual to keep the real WidgetLayoutSchema,
+// which transitively imports lib/shared/db.ts — and that throws at import time
+// when DATABASE_URL is unset (e.g. in CI). Stub db so the import is inert;
+// saveLayout is mocked anyway, so the client is never used.
+vi.mock('@/lib/shared/db', () => ({ db: {} }));
 vi.mock('@/lib/shared/auth', () => ({ requireOwner: vi.fn() }));
 const { saveLayoutMock } = vi.hoisted(() => ({ saveLayoutMock: vi.fn() }));
 vi.mock('@/lib/shared/widget-layout-store', async () => {
