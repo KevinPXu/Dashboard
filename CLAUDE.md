@@ -414,7 +414,9 @@ Recommended branch layout:
 | `pnpm test:integration` | Vitest integration suite (real DB via `DATABASE_URL`) |
 | `pnpm test:e2e` | Playwright smoke tests |
 
-### 11.3 Seed data
+### 11.3 Seed data *(planned — not yet implemented)*
+
+No seed mechanism exists yet: there is no `pnpm db:seed` script, no `scripts/*seed*`, and no `seed.ts` in `modules/_template/`. The intended convention, to be built when a module first needs it:
 
 - Optional `modules/<id>/db/seed.ts` exports `(db) => Promise<void>`
 - Run only when `pnpm db:seed` is explicitly called (never on deploy)
