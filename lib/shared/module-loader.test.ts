@@ -102,6 +102,8 @@ describe('discoverModules', () => {
 });
 
 describe('validateModuleStructure', () => {
+  const emptyEnv = { required: [] as string[], optional: [] as string[] };
+
   it('passes when all referenced files exist', async () => {
     const dir = makeModule(tmpRoot, 'good');
     await expect(
@@ -111,6 +113,7 @@ describe('validateModuleStructure', () => {
         api: [],
         widgets: [],
         cron: [],
+        env: emptyEnv,
       }),
     ).resolves.toBeUndefined();
   });
@@ -124,6 +127,7 @@ describe('validateModuleStructure', () => {
         api: [],
         widgets: [],
         cron: [],
+        env: emptyEnv,
       }),
     ).rejects.toThrow(/routes\/missing/);
   });
@@ -146,6 +150,7 @@ describe('validateModuleStructure', () => {
           },
         ],
         cron: [],
+        env: emptyEnv,
       }),
     ).resolves.toBeUndefined();
   });
@@ -168,6 +173,7 @@ describe('validateModuleStructure', () => {
           },
         ],
         cron: [],
+        env: emptyEnv,
       }),
     ).resolves.toBeUndefined();
   });
@@ -189,6 +195,7 @@ describe('validateModuleStructure', () => {
           },
         ],
         cron: [],
+        env: emptyEnv,
       }),
     ).rejects.toThrow(/widgets\/gone/);
   });
@@ -207,6 +214,7 @@ describe('validateModuleStructure', () => {
         ],
         widgets: [],
         cron: [],
+        env: emptyEnv,
       }),
     ).resolves.toBeUndefined();
   });
@@ -220,6 +228,7 @@ describe('validateModuleStructure', () => {
         api: [{ path: '/missing', methods: ['GET'] }],
         widgets: [],
         cron: [],
+        env: emptyEnv,
       }),
     ).rejects.toThrow(/missing/);
   });
@@ -233,6 +242,7 @@ describe('validateModuleStructure', () => {
         api: [],
         widgets: [],
         cron: [{ schedule: '0 * * * *', handler: '/api/other/job' }],
+        env: emptyEnv,
       }),
     ).rejects.toThrow(/cron handler/i);
   });
@@ -247,6 +257,7 @@ describe('validateModuleStructure', () => {
         api: [],
         widgets: [],
         cron: [{ schedule: '0 * * * *', handler: '/api/cronok/job' }],
+        env: emptyEnv,
       }),
     ).resolves.toBeUndefined();
   });
@@ -260,8 +271,52 @@ describe('validateModuleStructure', () => {
         api: [],
         widgets: [],
         cron: [{ schedule: '0 9 * * 1', handler: '/api/cronmod/cron/missing' }],
+        env: emptyEnv,
       }),
     ).rejects.toThrow(/cron\.missing/);
+  });
+
+  describe('env enforcement', () => {
+    it('rejects when env.required is missing from process.env', async () => {
+      const dir = makeModule(tmpRoot, 'envmiss');
+      const prev = process.env.X_REQUIRED_KEY;
+      delete process.env.X_REQUIRED_KEY;
+      try {
+        await expect(
+          validateModuleStructure(dir, {
+            id: 'envmiss',
+            routes: [{ path: '/', component: 'routes/index', shareable: false }],
+            api: [],
+            widgets: [],
+            cron: [],
+            env: { required: ['X_REQUIRED_KEY'], optional: [] },
+          }),
+        ).rejects.toThrow(/X_REQUIRED_KEY/);
+      } finally {
+        if (prev !== undefined) process.env.X_REQUIRED_KEY = prev;
+      }
+    });
+
+    it('accepts when env.required is present', async () => {
+      const dir = makeModule(tmpRoot, 'envok');
+      const prev = process.env.X_REQUIRED_KEY;
+      process.env.X_REQUIRED_KEY = 'present';
+      try {
+        await expect(
+          validateModuleStructure(dir, {
+            id: 'envok',
+            routes: [{ path: '/', component: 'routes/index', shareable: false }],
+            api: [],
+            widgets: [],
+            cron: [],
+            env: { required: ['X_REQUIRED_KEY'], optional: [] },
+          }),
+        ).resolves.toBeUndefined();
+      } finally {
+        if (prev === undefined) delete process.env.X_REQUIRED_KEY;
+        else process.env.X_REQUIRED_KEY = prev;
+      }
+    });
   });
 });
 

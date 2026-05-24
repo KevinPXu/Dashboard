@@ -58,7 +58,7 @@ export async function loadModuleConfig(dir: string): Promise<ModuleConfig> {
 
 export async function validateModuleStructure(
   dir: string,
-  config: Pick<ModuleConfig, 'id' | 'routes' | 'api' | 'widgets' | 'cron'>,
+  config: Pick<ModuleConfig, 'id' | 'routes' | 'api' | 'widgets' | 'cron' | 'env'>,
 ): Promise<void> {
   for (const route of config.routes) {
     await assertFileExists(dir, route.component, ['.tsx', '.ts']);
@@ -80,6 +80,11 @@ export async function validateModuleStructure(
     const subpath = cron.handler.slice(expectedPrefix.length); // e.g. "cron/digest"
     const handlerName = subpath.replace(/\//g, '.'); // e.g. "cron.digest"
     await assertFileExists(dir, path.join('api', handlerName), ['.ts']);
+  }
+  for (const key of config.env.required) {
+    if (!process.env[key]) {
+      throw new Error(`Module "${config.id}" requires env var "${key}" but it is not set`);
+    }
   }
 }
 
