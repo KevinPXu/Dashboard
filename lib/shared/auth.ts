@@ -2,12 +2,14 @@ import 'server-only';
 import { cookies } from 'next/headers';
 import { ForbiddenError } from './errors';
 import { verifySessionToken } from './session-token';
+import { SESSION_COOKIE } from './cookie-names';
 
 export { ForbiddenError } from './errors';
 
-// Also defined in /middleware.ts — keep in sync. Duplicated because the Edge
-// bundle must not transitively import this file (it pulls node:crypto).
-export const SESSION_COOKIE = 'dashboard_session';
+// Re-exported for existing importers (login/admin actions). The canonical
+// definition lives in ./cookie-names so the Edge proxy can share it without
+// transitively importing this file (which pulls node:crypto).
+export { SESSION_COOKIE } from './cookie-names';
 
 export type ShareScope = { moduleId: string; route: string; tokenId: string };
 export type Session = { role: 'owner' } | { role: 'guest'; shareScope: ShareScope };

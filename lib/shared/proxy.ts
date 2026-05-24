@@ -1,9 +1,9 @@
 // Runs in the Edge runtime. Do NOT import node:crypto or any 'server-only' code.
+// (./cookie-names is dependency-free, so it is safe to import here.)
 import { NextResponse, type NextRequest } from 'next/server';
 import { verifySessionTokenEdge } from './session-token-edge';
+import { SESSION_COOKIE, SHARE_COOKIE } from './cookie-names';
 
-const SESSION_COOKIE = 'dashboard_session';
-const SHARE_COOKIE = 'dashboard_share';
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 export async function proxy(req: NextRequest): Promise<NextResponse | undefined> {

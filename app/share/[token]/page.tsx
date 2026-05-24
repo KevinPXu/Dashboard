@@ -3,8 +3,7 @@ import { notFound } from 'next/navigation';
 import { resolveShareToken } from '@/lib/shared/share-links';
 import { ModuleErrorBoundary } from '@/components/shell/boundaries/ModuleErrorBoundary';
 import { renderSharedModuleRoute } from '@/lib/shared/share-render';
-
-const SHARE_COOKIE = 'dashboard_share';
+import { SHARE_COOKIE } from '@/lib/shared/cookie-names';
 
 type Props = { params: Promise<{ token: string }> };
 
