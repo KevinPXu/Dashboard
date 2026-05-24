@@ -4,14 +4,44 @@ const KebabCase = z
   .string()
   .regex(/^[a-z][a-z0-9-]*[a-z0-9]$/, 'must be kebab-case (lowercase letters, digits, hyphens)');
 
+const FIELD_RANGES: Array<[number, number]> = [
+  [0, 59], // minute
+  [0, 23], // hour
+  [1, 31], // day-of-month
+  [1, 12], // month
+  [0, 7], // day-of-week (0 and 7 both = Sunday)
+];
+
+function validateCronField(field: string, min: number, max: number): boolean {
+  if (field === '*') return true;
+  const stepMatch = field.match(/^\*\/(\d+)$/);
+  if (stepMatch) {
+    const step = Number(stepMatch[1]);
+    return step >= 1 && step <= max;
+  }
+  return field.split(',').every((part) => {
+    const m = part.match(/^(\d+)(?:-(\d+))?(?:\/(\d+))?$/);
+    if (!m) return false;
+    const start = Number(m[1]);
+    const end = m[2] !== undefined ? Number(m[2]) : start;
+    const step = m[3] !== undefined ? Number(m[3]) : 1;
+    if (start < min || start > max) return false;
+    if (end < start || end > max) return false;
+    if (step < 1) return false;
+    return true;
+  });
+}
+
 const CronExpression = z.string().refine(
   (val) => {
     const fields = val.trim().split(/\s+/);
     if (fields.length !== 5) return false;
-    const fieldPattern = /^(\*|(\*\/\d+)|(\d+(-\d+)?(\/\d+)?)(,(\d+(-\d+)?(\/\d+)?))*)$/;
-    return fields.every((f) => fieldPattern.test(f));
+    return fields.every((f, i) => {
+      const [min, max] = FIELD_RANGES[i]!;
+      return validateCronField(f, min, max);
+    });
   },
-  { message: 'cron schedule must be a valid 5-field expression' },
+  { message: 'cron schedule must be a valid 5-field expression with in-range values' },
 );
 
 const RouteSchema = z.object({
