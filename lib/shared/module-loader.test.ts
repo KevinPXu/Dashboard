@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs';
+import { promises as fsp } from 'node:fs';
 import * as path from 'node:path';
-import * as os from 'node:os';
 import { discoverModules, loadModuleConfig, validateModuleStructure } from './module-loader';
 
 let tmpRoot: string;
@@ -39,8 +39,14 @@ function makeModule(
   return dir;
 }
 
+// Use a project-local tmp dir so Vite/Vitest can transform `.ts` fixtures we
+// dynamically `import()` from validateModuleStructure (Node's native ESM loader
+// cannot handle `.ts` files in /tmp).
+const projectTmpBase = path.resolve(__dirname, '../../.test-tmp');
+
 beforeEach(() => {
-  tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dash-mod-'));
+  fs.mkdirSync(projectTmpBase, { recursive: true });
+  tmpRoot = fs.mkdtempSync(path.join(projectTmpBase, 'dash-mod-'));
   fs.mkdirSync(path.join(tmpRoot, 'modules'), { recursive: true });
 });
 
@@ -288,6 +294,24 @@ describe('validateModuleStructure', () => {
         env: emptyEnv,
       }),
     ).rejects.toThrow(/outside module/);
+  });
+
+  it('rejects when an API handler is missing a declared method export', async () => {
+    const dir = await fsp.mkdtemp(path.join(projectTmpBase, 'mod-'));
+    await fsp.mkdir(path.join(dir, 'api'));
+    await fsp.writeFile(
+      path.join(dir, 'api', 'health.ts'),
+      'export async function GET(){ return new Response("ok") }',
+    );
+    const cfg = {
+      id: 'x',
+      routes: [],
+      api: [{ path: '/health', methods: ['GET', 'POST'] as ('GET' | 'POST')[] }],
+      widgets: [],
+      cron: [],
+      env: { required: [], optional: [] },
+    };
+    await expect(validateModuleStructure(dir, cfg)).rejects.toThrow(/POST/);
   });
 
   describe('env enforcement', () => {

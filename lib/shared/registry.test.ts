@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import * as os from 'node:os';
 import {
   getModules,
   getModuleById,
@@ -39,9 +38,14 @@ function makeModule(root: string, id: string, enabled = true) {
   writeFile(path.join(dir, 'routes/index.tsx'), 'export default function P(){return null}\n');
 }
 
+// Use a project-local tmp dir so Vite/Vitest can transform `.ts` fixtures we
+// dynamically `import()` from validateModuleStructure.
+const projectTmpBase = path.resolve(__dirname, '../../.test-tmp');
+
 beforeEach(() => {
   __resetModuleRegistry();
-  tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dash-reg-'));
+  fs.mkdirSync(projectTmpBase, { recursive: true });
+  tmpRoot = fs.mkdtempSync(path.join(projectTmpBase, 'dash-reg-'));
   fs.mkdirSync(path.join(tmpRoot, 'modules'), { recursive: true });
   process.env.DATABASE_URL = 'x';
   process.env.DASHBOARD_PASSWORD = 'x';

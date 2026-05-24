@@ -20,6 +20,7 @@ build/
 # Testing
 coverage/
 .vitest-cache/
+.test-tmp/
 test-results/
 playwright-report/
 playwright/.cache/
