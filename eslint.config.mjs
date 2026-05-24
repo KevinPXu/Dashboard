@@ -16,13 +16,7 @@ const localRules = require('./eslint-rules/index.js');
 const eslintConfig = defineConfig([
   ...compat.extends('next/core-web-vitals'),
   ...compat.extends('next/typescript'),
-  globalIgnores([
-    '.next/**',
-    'out/**',
-    'build/**',
-    'next-env.d.ts',
-    'eslint-rules/**',
-  ]),
+  globalIgnores(['.next/**', 'out/**', 'build/**', 'next-env.d.ts', 'eslint-rules/**']),
   {
     plugins: { local: localRules },
     rules: {
