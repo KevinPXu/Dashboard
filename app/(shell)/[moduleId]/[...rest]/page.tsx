@@ -15,9 +15,12 @@ export default async function ModuleNestedPage({
   const fullPath = '/' + rest.join('/');
   const route = mod.config.routes.find((r) => r.path === fullPath);
   if (!route) notFound();
-  const imported = await loadModuleExport<{
-    default: () => Promise<ReactNode> | ReactNode;
-  }>(moduleId, route.component);
+  const imported = await loadModuleExport(
+    moduleId,
+    route.component,
+    (m): m is { default: () => Promise<ReactNode> | ReactNode } =>
+      typeof (m as { default?: unknown }).default === 'function',
+  );
   return (
     <ModuleErrorBoundary moduleName={mod.config.name}>
       {await imported.default()}

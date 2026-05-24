@@ -65,3 +65,36 @@ describe('ModuleConfigSchema', () => {
     expect(() => ModuleConfigSchema.parse(minimal)).not.toThrow();
   });
 });
+
+describe('cron expression validation', () => {
+  const base = {
+    id: 'mm',
+    name: 'M',
+    version: '0.0.1',
+    description: 'd',
+    enabled: true,
+    icon: 'I',
+    nav: { label: 'M', order: 1 },
+    routes: [],
+    api: [],
+    widgets: [],
+    db: { schema: 'mm' },
+    env: { required: [], optional: [] },
+  };
+
+  it('rejects out-of-range cron fields', () => {
+    const out = ModuleConfigSchema.safeParse({
+      ...base,
+      cron: [{ schedule: '99 99 99 99 99', handler: '/api/m/cron' }],
+    });
+    expect(out.success).toBe(false);
+  });
+
+  it('accepts a valid cron expression', () => {
+    const out = ModuleConfigSchema.safeParse({
+      ...base,
+      cron: [{ schedule: '0 9 * * 1', handler: '/api/m/cron' }],
+    });
+    expect(out.success).toBe(true);
+  });
+});

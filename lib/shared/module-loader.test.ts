@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs';
+import { promises as fsp } from 'node:fs';
 import * as path from 'node:path';
-import * as os from 'node:os';
 import { discoverModules, loadModuleConfig, validateModuleStructure } from './module-loader';
 
 let tmpRoot: string;
@@ -39,8 +39,14 @@ function makeModule(
   return dir;
 }
 
+// Use a project-local tmp dir so Vite/Vitest can transform `.ts` fixtures we
+// dynamically `import()` from validateModuleStructure (Node's native ESM loader
+// cannot handle `.ts` files in /tmp).
+const projectTmpBase = path.resolve(__dirname, '../../.test-tmp');
+
 beforeEach(() => {
-  tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dash-mod-'));
+  fs.mkdirSync(projectTmpBase, { recursive: true });
+  tmpRoot = fs.mkdtempSync(path.join(projectTmpBase, 'dash-mod-'));
   fs.mkdirSync(path.join(tmpRoot, 'modules'), { recursive: true });
 });
 
@@ -102,6 +108,8 @@ describe('discoverModules', () => {
 });
 
 describe('validateModuleStructure', () => {
+  const emptyEnv = { required: [] as string[], optional: [] as string[] };
+
   it('passes when all referenced files exist', async () => {
     const dir = makeModule(tmpRoot, 'good');
     await expect(
@@ -111,6 +119,7 @@ describe('validateModuleStructure', () => {
         api: [],
         widgets: [],
         cron: [],
+        env: emptyEnv,
       }),
     ).resolves.toBeUndefined();
   });
@@ -124,6 +133,7 @@ describe('validateModuleStructure', () => {
         api: [],
         widgets: [],
         cron: [],
+        env: emptyEnv,
       }),
     ).rejects.toThrow(/routes\/missing/);
   });
@@ -146,6 +156,7 @@ describe('validateModuleStructure', () => {
           },
         ],
         cron: [],
+        env: emptyEnv,
       }),
     ).resolves.toBeUndefined();
   });
@@ -168,6 +179,7 @@ describe('validateModuleStructure', () => {
           },
         ],
         cron: [],
+        env: emptyEnv,
       }),
     ).resolves.toBeUndefined();
   });
@@ -189,6 +201,7 @@ describe('validateModuleStructure', () => {
           },
         ],
         cron: [],
+        env: emptyEnv,
       }),
     ).rejects.toThrow(/widgets\/gone/);
   });
@@ -207,6 +220,7 @@ describe('validateModuleStructure', () => {
         ],
         widgets: [],
         cron: [],
+        env: emptyEnv,
       }),
     ).resolves.toBeUndefined();
   });
@@ -220,6 +234,7 @@ describe('validateModuleStructure', () => {
         api: [{ path: '/missing', methods: ['GET'] }],
         widgets: [],
         cron: [],
+        env: emptyEnv,
       }),
     ).rejects.toThrow(/missing/);
   });
@@ -233,6 +248,7 @@ describe('validateModuleStructure', () => {
         api: [],
         widgets: [],
         cron: [{ schedule: '0 * * * *', handler: '/api/other/job' }],
+        env: emptyEnv,
       }),
     ).rejects.toThrow(/cron handler/i);
   });
@@ -247,6 +263,7 @@ describe('validateModuleStructure', () => {
         api: [],
         widgets: [],
         cron: [{ schedule: '0 * * * *', handler: '/api/cronok/job' }],
+        env: emptyEnv,
       }),
     ).resolves.toBeUndefined();
   });
@@ -260,8 +277,112 @@ describe('validateModuleStructure', () => {
         api: [],
         widgets: [],
         cron: [{ schedule: '0 9 * * 1', handler: '/api/cronmod/cron/missing' }],
+        env: emptyEnv,
       }),
     ).rejects.toThrow(/cron\.missing/);
+  });
+
+  it('rejects manifest paths that escape the module directory', async () => {
+    const dir = makeModule(tmpRoot, 'traversal');
+    await expect(
+      validateModuleStructure(dir, {
+        id: 'traversal',
+        routes: [{ path: '/', component: '../../etc/passwd', shareable: false }],
+        api: [],
+        widgets: [],
+        cron: [],
+        env: emptyEnv,
+      }),
+    ).rejects.toThrow(/outside module/);
+  });
+
+  it('rejects when an API handler is missing a declared method export', async () => {
+    const dir = path.join(tmpRoot, 'method-export-check');
+    await fsp.mkdir(path.join(dir, 'api'), { recursive: true });
+    await fsp.writeFile(
+      path.join(dir, 'api', 'health.ts'),
+      'export async function GET(){ return new Response("ok") }',
+    );
+    const cfg = {
+      id: 'x',
+      routes: [],
+      api: [{ path: '/health', methods: ['GET', 'POST'] as ('GET' | 'POST')[] }],
+      widgets: [],
+      cron: [],
+      env: { required: [], optional: [] },
+    };
+    await expect(validateModuleStructure(dir, cfg)).rejects.toThrow(/POST/);
+  });
+
+  it('skips the import-based method check under the Next.js server runtime', async () => {
+    // Under NEXT_RUNTIME, Node's ESM loader cannot import a `.ts` file by
+    // file:// URL, and the build already ran this gate — so the check is
+    // skipped at request time. A missing method export must NOT throw here.
+    const dir = path.join(tmpRoot, 'next-runtime-skip');
+    await fsp.mkdir(path.join(dir, 'api'), { recursive: true });
+    await fsp.writeFile(
+      path.join(dir, 'api', 'health.ts'),
+      'export async function GET(){ return new Response("ok") }',
+    );
+    const cfg = {
+      id: 'x',
+      routes: [],
+      api: [{ path: '/health', methods: ['GET', 'POST'] as ('GET' | 'POST')[] }],
+      widgets: [],
+      cron: [],
+      env: { required: [], optional: [] },
+    };
+    const prev = process.env.NEXT_RUNTIME;
+    process.env.NEXT_RUNTIME = 'nodejs';
+    try {
+      await expect(validateModuleStructure(dir, cfg)).resolves.toBeUndefined();
+    } finally {
+      if (prev === undefined) delete process.env.NEXT_RUNTIME;
+      else process.env.NEXT_RUNTIME = prev;
+    }
+  });
+
+  describe('env enforcement', () => {
+    it('rejects when env.required is missing from process.env', async () => {
+      const dir = makeModule(tmpRoot, 'envmiss');
+      const prev = process.env.X_REQUIRED_KEY;
+      delete process.env.X_REQUIRED_KEY;
+      try {
+        await expect(
+          validateModuleStructure(dir, {
+            id: 'envmiss',
+            routes: [{ path: '/', component: 'routes/index', shareable: false }],
+            api: [],
+            widgets: [],
+            cron: [],
+            env: { required: ['X_REQUIRED_KEY'], optional: [] },
+          }),
+        ).rejects.toThrow(/X_REQUIRED_KEY/);
+      } finally {
+        if (prev !== undefined) process.env.X_REQUIRED_KEY = prev;
+      }
+    });
+
+    it('accepts when env.required is present', async () => {
+      const dir = makeModule(tmpRoot, 'envok');
+      const prev = process.env.X_REQUIRED_KEY;
+      process.env.X_REQUIRED_KEY = 'present';
+      try {
+        await expect(
+          validateModuleStructure(dir, {
+            id: 'envok',
+            routes: [{ path: '/', component: 'routes/index', shareable: false }],
+            api: [],
+            widgets: [],
+            cron: [],
+            env: { required: ['X_REQUIRED_KEY'], optional: [] },
+          }),
+        ).resolves.toBeUndefined();
+      } finally {
+        if (prev === undefined) delete process.env.X_REQUIRED_KEY;
+        else process.env.X_REQUIRED_KEY = prev;
+      }
+    });
   });
 });
 

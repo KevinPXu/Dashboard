@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { eq, isNull } from 'drizzle-orm';
+import { and, eq, gt, isNull, or } from 'drizzle-orm';
 import { db } from './db';
 import { shareLinks } from '@/platform/db/schema';
 
@@ -88,7 +88,16 @@ export async function revokeShareLink(tokenId: string): Promise<void> {
 }
 
 export async function listShareLinks() {
-  return db.select().from(shareLinks).where(isNull(shareLinks.revokedAt));
+  const now = new Date();
+  return db
+    .select()
+    .from(shareLinks)
+    .where(
+      and(
+        isNull(shareLinks.revokedAt),
+        or(isNull(shareLinks.expiresAt), gt(shareLinks.expiresAt, now)),
+      ),
+    );
 }
 
 export async function isShareTokenActive(tokenId: string): Promise<boolean> {

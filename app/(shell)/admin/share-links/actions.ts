@@ -1,10 +1,16 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createShareLink, revokeShareLink, listShareLinks } from '@/lib/shared/share-links';
+import {
+  createShareLink,
+  revokeShareLink,
+  listShareLinks as _listShareLinks,
+} from '@/lib/shared/share-links';
 import { getModules } from '@/lib/shared/registry';
+import { requireOwner } from '@/lib/shared/auth';
 
 export async function createLinkAction(formData: FormData) {
+  await requireOwner();
   const moduleId = String(formData.get('moduleId') ?? '');
   const route = String(formData.get('route') ?? '');
   const label = String(formData.get('label') ?? '') || undefined;
@@ -32,6 +38,7 @@ export async function createLinkAction(formData: FormData) {
 }
 
 export async function revokeLinkAction(formData: FormData) {
+  await requireOwner();
   const tokenId = String(formData.get('tokenId') ?? '');
   if (!tokenId) return;
   await revokeShareLink(tokenId);
@@ -39,6 +46,7 @@ export async function revokeLinkAction(formData: FormData) {
 }
 
 export async function getShareableRoutes() {
+  await requireOwner();
   const modules = await getModules();
   const out: { moduleId: string; route: string; label: string }[] = [];
   for (const m of modules) {
@@ -51,4 +59,7 @@ export async function getShareableRoutes() {
   return out;
 }
 
-export { listShareLinks };
+export async function listShareLinks() {
+  await requireOwner();
+  return _listShareLinks();
+}

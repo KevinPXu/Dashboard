@@ -2,7 +2,7 @@
 
 > **Status:** Living document. Updated continuously during brainstorming and development. Decisions are locked in here so they survive session loss and inform all future work.
 >
-> **Last updated:** 2026-05-21 (during initial platform brainstorming session)
+> **Last updated:** 2026-05-24 (aligned with adversarial-review remediation)
 
 ---
 
@@ -120,24 +120,44 @@ Dashboard/
 │       ├── widgets/             ← home-page widget components
 │       ├── tests/               ← unit + integration tests
 │       └── README.md            ← what it does, how to use it
+├── middleware.ts                ← root Edge entry; re-exports lib/shared/proxy (Next 15; native proxy.ts in Next 16)
+├── components/shell/
+│   └── boundaries/              ← error boundaries the shell applies (modules don't write their own)
+│       ├── ModuleErrorBoundary.tsx
+│       └── WidgetErrorBoundary.tsx
 ├── lib/shared/                  ← platform-provided utilities
 │   ├── auth.ts                  ← getSession(), requireOwner()
+│   ├── sessions.ts              ← createOwnerSession() — the only writer of platform.sessions
+│   ├── session-token.ts         ← HMAC sign/verify of the owner session token (node:crypto)
+│   ├── session-token-edge.ts    ← Edge-runtime verify (no node:crypto, inlined for the proxy)
+│   ├── cookie-names.ts          ← canonical cookie names; dependency-free so the Edge proxy can import them
 │   ├── db.ts                    ← Drizzle client, schema composition
 │   ├── share-links.ts           ← sign / verify / revoke
+│   ├── share-render.ts          ← resolve & render a shared route for a guest
 │   ├── cron.ts                  ← cron registration helper
-│   ├── proxy.ts                 ← auth gate, guest write-block (Next 16 renamed from middleware.ts)
+│   ├── proxy.ts                 ← Edge auth gate + guest write-block (re-exported by root middleware.ts)
 │   ├── module-loader.ts         ← discover & validate modules at build time
+│   ├── module-import.ts         ← validated dynamic module imports (public surface)
+│   ├── module-import-impl.ts    ← underlying file-import implementation
+│   ├── registry.ts              ← discovered+env-validated module registry
+│   ├── env-validator.ts         ← validatePlatformEnv / validateRequiredEnv
+│   ├── widget-layout-store.ts   ← read/write platform.widget_layouts
+│   ├── widget-render.ts         ← resolve & render home-page widgets
 │   └── types.ts                 ← ModuleConfig type, shared interfaces
 ├── platform/                    ← platform-owned DB schema & migrations
 │   └── db/
 │       ├── schema.ts            ← platform.share_links, widget_layouts, settings
 │       └── migrations/
 ├── scripts/
-│   └── new-module.ts            ← `pnpm new-module <id>` CLI
+│   ├── new-module.ts            ← `pnpm new-module <id>` CLI
+│   ├── migrate-all.ts           ← platform-first then per-module migrations (`pnpm db:migrate`)
+│   ├── db-reset.ts              ← guarded drop + re-migrate (`pnpm db:reset`)
+│   └── build-vercel-config.ts   ← aggregate cron → vercel.json + validate platform env (prebuild)
 ├── tests/
 │   └── e2e/                     ← Playwright smoke tests
 ├── vercel.json                  ← cron entries (auto-generated)
-├── drizzle.config.ts
+├── drizzle.config.ts            ← platform-only schema/migrations
+├── drizzle.modules.config.ts    ← per-module schema/migrations (selected via DRIZZLE_MODULE_ID)
 └── package.json
 ```
 
@@ -205,10 +225,12 @@ export default {
 The module loader rejects builds if any of these fail:
 - `id` matches folder name, is unique, is kebab-case
 - `db.schema` matches `id` with underscores
-- All component / handler paths resolve to real files
+- All component / handler paths resolve to real files **and** stay inside the module directory (path-traversal rejection)
+- Every API handler file exports a function for each method it declares (checked outside the Next.js server runtime — i.e. in tests and the build-time prebuild)
+- Each cron `handler` starts with `/api/<id>/` and resolves to a real handler file
 - No cross-module imports (ESLint rule)
 - All required env vars are present in the environment
-- All cron schedules are valid cron expressions
+- All cron schedules are valid 5-field expressions with per-field in-range values
 
 ### 5.3 What modules control vs. don't
 
@@ -302,7 +324,7 @@ Pull requests are blocked if:
 
 - Module ID: kebab-case (`job-tracker`)
 - DB schema: snake_case matching ID (`job_tracker`)
-- Env vars: `SCREAMING_SNAKE_CASE` prefixed with module ID (`JOB_TRACKER_API_KEY`); platform vars unprefixed (`DATABASE_URL`, `DASHBOARD_PASSWORD`, `SHARE_LINK_SIGNING_KEY`)
+- Env vars: `SCREAMING_SNAKE_CASE` prefixed with module ID (`JOB_TRACKER_API_KEY`); platform vars unprefixed (`DATABASE_URL`, `DASHBOARD_PASSWORD`, `SHARE_LINK_SIGNING_KEY`, `SESSION_COOKIE_SECRET`). `SESSION_COOKIE_SECRET` is always required; `CRON_SECRET` is required whenever any module declares a cron entry (Vercel Cron sends it as `Authorization: Bearer ${CRON_SECRET}`). Both are enforced at build time via `lib/shared/env-validator.ts` (`validatePlatformEnv`), run in the `build:vercel-config` prebuild.
 - Cache tags: `<module-id>:<resource>` (`job-tracker:applications`)
 
 ### 9.2 Adding a new module
@@ -317,7 +339,8 @@ Generates folder structure, manifest stub, empty test file, README, DB schema st
 
 - Each module owns its migrations under `modules/<id>/db/migrations/`
 - Platform owns its own under `platform/db/migrations/`
-- Deploy runs platform migrations first, then each module's migrations in alphabetical module-ID order
+- Drizzle uses two configs: `drizzle.config.ts` (platform-only) and `drizzle.modules.config.ts` (per-module, selected via the `DRIZZLE_MODULE_ID` env var)
+- `pnpm db:migrate` runs `scripts/migrate-all.ts`, which applies platform migrations first, then each module's migrations in alphabetical module-ID order
 - Migrations are forward-only; no automatic rollback
 
 ---
@@ -326,7 +349,7 @@ Generates folder structure, manifest stub, empty test file, README, DB schema st
 
 ### 10.1 UI error boundaries
 
-Three layers, all provided by `lib/shared/boundaries.tsx` and applied automatically by the shell — modules don't write their own:
+Three layers, all provided under `components/shell/boundaries/` and applied automatically by the shell — modules don't write their own:
 
 - **Shell-level** — last resort, wraps everything
 - **Per-module** — wraps each module's route subtree; a crashed module shows a friendly fallback while the rest of the dashboard keeps working
@@ -384,15 +407,16 @@ Recommended branch layout:
 
 | Script | Purpose |
 |---|---|
-| `pnpm db:migrate` | Run platform then all module migrations against `DATABASE_URL` |
-| `pnpm db:seed` | Invoke each module's optional `db/seed.ts` (alphabetical) |
-| `pnpm db:reset` | Drop schemas, re-migrate, re-seed (use sparingly on shared branches) |
+| `pnpm db:migrate` | Run platform migrations then each module's migrations (alphabetical) via `scripts/migrate-all.ts` |
+| `pnpm db:reset` | Drop platform + module schemas + the `drizzle` migration ledger, then re-migrate. Guarded: refuses under `NODE_ENV=production` and requires typing the target DB name to confirm (or `DB_RESET_CONFIRM=<dbname>` non-interactively) |
 | `pnpm dev` | Next.js dev server |
 | `pnpm test` | Vitest watch |
 | `pnpm test:integration` | Vitest integration suite (real DB via `DATABASE_URL`) |
 | `pnpm test:e2e` | Playwright smoke tests |
 
-### 11.3 Seed data
+### 11.3 Seed data *(planned — not yet implemented)*
+
+No seed mechanism exists yet: there is no `pnpm db:seed` script, no `scripts/*seed*`, and no `seed.ts` in `modules/_template/`. The intended convention, to be built when a module first needs it:
 
 - Optional `modules/<id>/db/seed.ts` exports `(db) => Promise<void>`
 - Run only when `pnpm db:seed` is explicitly called (never on deploy)

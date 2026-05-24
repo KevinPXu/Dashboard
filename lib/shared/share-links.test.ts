@@ -160,6 +160,37 @@ describe('listShareLinks', () => {
     });
     await expect(listShareLinks()).resolves.toBe(rows);
   });
+
+  it('excludes expired and revoked entries via the WHERE clause', async () => {
+    const whereCapture = vi.fn().mockResolvedValue([]);
+    mocks.selectMock.mockReturnValueOnce({
+      from: vi.fn().mockReturnValue({ where: whereCapture }),
+    });
+
+    await listShareLinks();
+
+    expect(whereCapture).toHaveBeenCalledOnce();
+    // Drizzle SQL objects are circular (column.table back-references), so we
+    // walk the expression's queryChunks tree and collect the column names
+    // rather than JSON.stringify-ing the whole thing.
+    const collectColumnNames = (node: unknown, seen = new Set<unknown>()): string[] => {
+      if (node == null || typeof node !== 'object' || seen.has(node)) return [];
+      seen.add(node);
+      const obj = node as Record<string, unknown>;
+      const names: string[] = [];
+      if (typeof obj.name === 'string' && typeof obj.columnType === 'string') {
+        names.push(obj.name);
+      }
+      if (Array.isArray(obj.queryChunks)) {
+        for (const chunk of obj.queryChunks) names.push(...collectColumnNames(chunk, seen));
+      }
+      return names;
+    };
+
+    const columns = collectColumnNames(whereCapture.mock.calls[0]![0]);
+    expect(columns).toContain('revoked_at');
+    expect(columns).toContain('expires_at');
+  });
 });
 
 describe('isShareTokenActive', () => {

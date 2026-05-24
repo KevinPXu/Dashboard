@@ -11,8 +11,14 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./vitest.setup.ts'],
     globals: true,
-    passWithNoTests: true,
-    exclude: ['node_modules/**', 'tests/e2e/**', 'tests/integration/**', '.next/**'],
+    passWithNoTests: false,
+    exclude: [
+      'node_modules/**',
+      'tests/e2e/**',
+      'tests/integration/**',
+      '.next/**',
+      'eslint-rules/**',
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json-summary', 'html'],

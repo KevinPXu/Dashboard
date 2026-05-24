@@ -58,7 +58,7 @@ export async function loadModuleConfig(dir: string): Promise<ModuleConfig> {
 
 export async function validateModuleStructure(
   dir: string,
-  config: Pick<ModuleConfig, 'id' | 'routes' | 'api' | 'widgets' | 'cron'>,
+  config: Pick<ModuleConfig, 'id' | 'routes' | 'api' | 'widgets' | 'cron' | 'env'>,
 ): Promise<void> {
   for (const route of config.routes) {
     await assertFileExists(dir, route.component, ['.tsx', '.ts']);
@@ -70,6 +70,25 @@ export async function validateModuleStructure(
     const handlerName =
       api.path === '/' ? 'index' : api.path.replace(/^\//, '').replace(/\//g, '.');
     await assertFileExists(dir, path.join('api', handlerName), ['.ts']);
+    // Verifying that every declared method is exported requires importing the
+    // handler module. Skip this under the Next.js server runtime: Node's ESM
+    // loader cannot import a `.ts` file by file:// URL there, and the build
+    // already enforced this gate (prebuild runs discoverModules under tsx).
+    // The check still runs in tests and the build-time prebuild.
+    if (!process.env.NEXT_RUNTIME) {
+      const filePath = path.join(dir, 'api', handlerName + '.ts');
+      const mod = (await import(/* @vite-ignore */ pathToFileURL(filePath).href)) as Record<
+        string,
+        unknown
+      >;
+      for (const method of api.methods) {
+        if (typeof mod[method] !== 'function') {
+          throw new Error(
+            `Module "${config.id}" api ${api.path} declares ${method} but file does not export a ${method} function`,
+          );
+        }
+      }
+    }
   }
   for (const cron of config.cron) {
     const expectedPrefix = `/api/${config.id}/`;
@@ -81,6 +100,11 @@ export async function validateModuleStructure(
     const handlerName = subpath.replace(/\//g, '.'); // e.g. "cron.digest"
     await assertFileExists(dir, path.join('api', handlerName), ['.ts']);
   }
+  for (const key of config.env.required) {
+    if (!process.env[key]) {
+      throw new Error(`Module "${config.id}" requires env var "${key}" but it is not set`);
+    }
+  }
 }
 
 async function assertFileExists(
@@ -88,9 +112,14 @@ async function assertFileExists(
   relative: string,
   extensions: string[],
 ): Promise<void> {
+  const moduleRoot = path.resolve(dir) + path.sep;
   for (const ext of extensions) {
+    const resolved = path.resolve(dir, relative + ext);
+    if (!resolved.startsWith(moduleRoot)) {
+      throw new Error(`Manifest path "${relative}" resolves outside module directory ${dir}`);
+    }
     try {
-      await fs.access(path.join(dir, relative + ext));
+      await fs.access(resolved);
       return;
     } catch {
       // try next extension

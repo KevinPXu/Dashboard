@@ -1,0 +1,3 @@
+// Read-only queries other modules MAY import. Keep narrow — every export
+// here is a stable contract. Do NOT export mutations.
+export {};

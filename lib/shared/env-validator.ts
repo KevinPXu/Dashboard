@@ -27,3 +27,17 @@ export function validateRequiredEnv(
     throw new Error(`Missing required environment variables:\n  - ${missing.join('\n  - ')}`);
   }
 }
+
+export function validatePlatformEnv(
+  env: NodeJS.ProcessEnv | Record<string, string | undefined>,
+  opts: { cronCount?: number } = {},
+): void {
+  // Required in every deployment: without it the Edge proxy cannot verify
+  // owner sessions and silently degrades to blocking all guest-cookie writes.
+  if (!env.SESSION_COOKIE_SECRET) {
+    throw new Error('SESSION_COOKIE_SECRET must be set');
+  }
+  if ((opts.cronCount ?? 0) > 0 && !env.CRON_SECRET) {
+    throw new Error('CRON_SECRET must be set when any module declares a cron entry');
+  }
+}
