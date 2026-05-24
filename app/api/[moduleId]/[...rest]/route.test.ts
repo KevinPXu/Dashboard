@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('@/lib/shared/auth', () => ({
   getSession: vi.fn(),
@@ -20,10 +20,17 @@ function ctx(rest: string[]) {
   return { params: Promise.resolve({ moduleId: 'smoke', rest }) };
 }
 
+const originalCronSecret = process.env.CRON_SECRET;
+
 beforeEach(() => {
   vi.mocked(getSession).mockReset();
   vi.mocked(isApiPathDeclared).mockReset();
   process.env.CRON_SECRET = 'crontop';
+});
+
+afterEach(() => {
+  if (originalCronSecret === undefined) delete process.env.CRON_SECRET;
+  else process.env.CRON_SECRET = originalCronSecret;
 });
 
 describe('api gateway', () => {
