@@ -276,6 +276,20 @@ describe('validateModuleStructure', () => {
     ).rejects.toThrow(/cron\.missing/);
   });
 
+  it('rejects manifest paths that escape the module directory', async () => {
+    const dir = makeModule(tmpRoot, 'traversal');
+    await expect(
+      validateModuleStructure(dir, {
+        id: 'traversal',
+        routes: [{ path: '/', component: '../../etc/passwd', shareable: false }],
+        api: [],
+        widgets: [],
+        cron: [],
+        env: emptyEnv,
+      }),
+    ).rejects.toThrow(/outside module/);
+  });
+
   describe('env enforcement', () => {
     it('rejects when env.required is missing from process.env', async () => {
       const dir = makeModule(tmpRoot, 'envmiss');

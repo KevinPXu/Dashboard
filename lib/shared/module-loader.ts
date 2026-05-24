@@ -93,9 +93,14 @@ async function assertFileExists(
   relative: string,
   extensions: string[],
 ): Promise<void> {
+  const moduleRoot = path.resolve(dir) + path.sep;
   for (const ext of extensions) {
+    const resolved = path.resolve(dir, relative + ext);
+    if (!resolved.startsWith(moduleRoot)) {
+      throw new Error(`Manifest path "${relative}" resolves outside module directory ${dir}`);
+    }
     try {
-      await fs.access(path.join(dir, relative + ext));
+      await fs.access(resolved);
       return;
     } catch {
       // try next extension
