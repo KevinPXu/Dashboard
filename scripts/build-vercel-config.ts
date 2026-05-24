@@ -1,5 +1,7 @@
 import * as fs from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import * as path from 'node:path';
+import { config as loadDotenv } from 'dotenv';
 import { discoverModules, type LoadedModule } from '../lib/shared/module-loader';
 import { validatePlatformEnv } from '../lib/shared/env-validator';
 
@@ -12,6 +14,12 @@ export function buildVercelConfig(modules: LoadedModule[]): Record<string, unkno
 
 async function main() {
   const root = process.cwd();
+  // Local builds: hydrate process.env from .env.local so the CRON_SECRET check
+  // below sees the same vars Next does. On Vercel there is no .env.local (env
+  // is injected), so this is a no-op there.
+  const envLocal = path.join(root, '.env.local');
+  if (existsSync(envLocal)) loadDotenv({ path: envLocal });
+
   const modules = await discoverModules(root);
   const enabled = modules.filter((m) => m.config.enabled);
   const config = buildVercelConfig(enabled);
