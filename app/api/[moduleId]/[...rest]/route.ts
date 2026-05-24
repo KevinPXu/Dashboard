@@ -1,8 +1,13 @@
 import { notFound } from 'next/navigation';
 import { getModuleById } from '@/lib/shared/registry';
 import { loadModuleExport } from '@/lib/shared/module-import';
+import { getSession } from '@/lib/shared/auth';
 
 async function handle(method: string, moduleId: string, rest: string[], req: Request) {
+  const session = await getSession();
+  if (!session || session.role !== 'owner') {
+    return new Response('Unauthorized', { status: 401 });
+  }
   const mod = await getModuleById(moduleId);
   if (!mod) notFound();
   const handlerName = rest.length === 0 ? 'index' : rest.join('.');

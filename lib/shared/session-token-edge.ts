@@ -1,4 +1,9 @@
-import type { SessionPayload } from './session-token';
+// Inlined to keep the edge bundle free of any reference to session-token.ts,
+// which imports node:crypto. Turbopack doesn't always strip `import type` reliably.
+type SessionPayload = {
+  sid: string;
+  exp: number;
+};
 
 function b64urlToUint8(s: string): Uint8Array {
   // Convert base64url -> base64

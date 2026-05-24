@@ -20,7 +20,10 @@ async function main() {
   try {
     existing = JSON.parse(await fs.readFile(outPath, 'utf-8'));
   } catch {}
-  const merged = { ...existing, ...config };
+  // Explicitly clear `crons` first so a module removing its cron actually
+  // shrinks vercel.json; merging would silently keep stale entries.
+  const { crons: _stale, ...rest } = existing;
+  const merged = { ...rest, ...config };
   await fs.writeFile(outPath, JSON.stringify(merged, null, 2) + '\n');
   console.log(
     `Wrote ${outPath} with ${(config.crons as unknown[] | undefined)?.length ?? 0} cron entries`,
