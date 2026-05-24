@@ -27,3 +27,12 @@ export function validateRequiredEnv(
     throw new Error(`Missing required environment variables:\n  - ${missing.join('\n  - ')}`);
   }
 }
+
+export function validatePlatformEnv(
+  env: NodeJS.ProcessEnv | Record<string, string | undefined>,
+  opts: { cronCount?: number } = {},
+): void {
+  if ((opts.cronCount ?? 0) > 0 && !env.CRON_SECRET) {
+    throw new Error('CRON_SECRET must be set when any module declares a cron entry');
+  }
+}

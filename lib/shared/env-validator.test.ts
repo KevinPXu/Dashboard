@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateRequiredEnv } from './env-validator';
+import { validateRequiredEnv, validatePlatformEnv } from './env-validator';
 import type { LoadedModule } from './module-loader';
 
 function mod(id: string, required: string[]): LoadedModule {
@@ -60,5 +60,18 @@ describe('validateRequiredEnv', () => {
     expect(() => validateRequiredEnv([], env)).toThrow(
       /DASHBOARD_PASSWORD|SHARE_LINK_SIGNING_KEY|SESSION_COOKIE_SECRET/,
     );
+  });
+});
+
+describe('validatePlatformEnv', () => {
+  it('requires CRON_SECRET when any module declares cron', () => {
+    const env: Record<string, string | undefined> = { ...process.env };
+    delete env.CRON_SECRET;
+    expect(() => validatePlatformEnv(env, { cronCount: 1 })).toThrow(/CRON_SECRET/);
+  });
+  it('does not require CRON_SECRET when no module declares cron', () => {
+    const env: Record<string, string | undefined> = { ...process.env };
+    delete env.CRON_SECRET;
+    expect(() => validatePlatformEnv(env, { cronCount: 0 })).not.toThrow();
   });
 });

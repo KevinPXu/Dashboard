@@ -1,6 +1,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { discoverModules, type LoadedModule } from '../lib/shared/module-loader';
+import { validatePlatformEnv } from '../lib/shared/env-validator';
 
 export function buildVercelConfig(modules: LoadedModule[]): Record<string, unknown> {
   const crons = modules.flatMap((m) =>
@@ -14,6 +15,10 @@ async function main() {
   const modules = await discoverModules(root);
   const enabled = modules.filter((m) => m.config.enabled);
   const config = buildVercelConfig(enabled);
+
+  validatePlatformEnv(process.env, {
+    cronCount: (config.crons as unknown[] | undefined)?.length ?? 0,
+  });
 
   const outPath = path.join(root, 'vercel.json');
   let existing: Record<string, unknown> = {};
