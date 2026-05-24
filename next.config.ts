@@ -1,9 +1,8 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  // Lint runs in CI; skip during build so eslint-config-next version mismatches
-  // don't block deploys.
-  eslint: { ignoreDuringBuilds: true },
+  // ESLint runs in CI AND during `next build` so cross-module import
+  // violations and other lint errors fail deploys.
 };
 
 export default nextConfig;
