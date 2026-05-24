@@ -5001,6 +5001,27 @@ for n in needed:
 
 **What this verifies:** the platform is live on the custom domain, SSL is in place, auth gates serve their role, and Vercel is serving the actual Next.js app (not a stale parking page or a misconfigured "Other" project).
 
+## Task 13.6: CI hardening surfaced by the docs PR
+
+Opening the Phase-13 docs PR triggered the GitHub Actions workflow, which uncovered two real CI breakages that the prebuild path was silently working around. Captured here because they're the kind of thing the next contributor will hit again.
+
+- [x] **`format:check` failed on `tsconfig.json`.** Prettier wanted single-line arrays for `lib`, `paths`, and `exclude`; the committed file used multi-line. Resolved by `pnpm exec prettier --write tsconfig.json`. No semantic change.
+- [x] **`pnpm lint` errored with `TypeError: nextVitals is not iterable`.** `eslint-config-next` 15.x ships as a **legacy** ESLint config (`{ extends: [...] }`), not a flat-config array — so `...nextVitals` at the top of `eslint.config.mjs` couldn't spread an object. The earlier commit `efcfb28 fix: skip ESLint during build` masked this for the build, but CI's standalone lint job had no mask. Fixed by switching to the Next.js-documented bridge:
+  ```js
+  import { FlatCompat } from '@eslint/eslintrc';
+  const compat = new FlatCompat({ baseDirectory: path.dirname(fileURLToPath(import.meta.url)) });
+  export default defineConfig([
+    ...compat.extends('next/core-web-vitals'),
+    ...compat.extends('next/typescript'),
+    // ...
+  ]);
+  ```
+  Added `@eslint/eslintrc` as a direct devDependency (was transitive).
+- [ ] **Follow-up:** `next.config.ts` still has `eslint: { ignoreDuringBuilds: true }` from the earlier workaround. Now that flat config works, the build's own ESLint step can be re-enabled — remove that line and verify `pnpm build` still passes.
+- [ ] **Follow-up:** two pre-existing lint warnings remain (do not fail CI):
+  - `coverage/block-navigation.js` — stray `eslint-disable` directive. Resolve by adding `coverage/**` to `globalIgnores` in `eslint.config.mjs` (the directory is `.gitignored` but appears in local lint runs after a coverage pass).
+  - `scripts/build-vercel-config.ts:25` — `_stale` flagged unused. Either teach the rule to honor `_`-prefixed identifiers (`'@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }]`) or rename the variable.
+
 ---
 
 ## Post-ship outstanding items (not blocking, but track these)
@@ -5015,4 +5036,4 @@ These are real gaps in the shipped state that did not warrant blocking the launc
 2. **Production DB may be the same Neon branch as local dev.** `DATABASE_URL` for production was sourced from `.env.local`, which per spec points at the `dev` Neon branch. Verify in Neon console; if so, create a `main` (production) Neon branch and rotate the production `DATABASE_URL` to it. Run `pnpm db:migrate` against the new branch before cutover.
 3. **`dashboard-<hash>.vercel.app` aliases are not load-bearing.** The auto-generated project alias (`dashboard-ruby-rho-80.vercel.app` historically) drifted to 404 after Phase 13 because the custom domain became primary. Custom domain is the source of truth; do not rely on the auto-alias.
 4. **The smoke module's cron is still active.** `vercel.json` currently registers `/api/smoke/cron/yearly` (schedule `0 0 1 1 *`). Harmless — fires once a year — but should be removed when the smoke module is replaced by a real module (Job Tracker).
-5. **Vercel deploy compatibility scars.** The `platform-bootstrap` branch carried several "fix: ... Vercel deploy compat" commits late in Phase 12 (Webpack vs Turbopack, edge vs Node middleware, ESLint config mismatch). These are now in `main`; future Next.js or pnpm upgrades may resurface them. If a Vercel build suddenly fails, suspect these areas first.
+5. **Vercel/CI compatibility scars.** The `platform-bootstrap` branch carried several "fix: ... Vercel deploy compat" commits late in Phase 12 (Webpack vs Turbopack, edge vs Node middleware). Task 13.6 also addressed the ESLint flat-config / Next 15.x mismatch via `FlatCompat`. The remaining scar is `eslint: { ignoreDuringBuilds: true }` in `next.config.ts` (see Task 13.6 follow-up). Future Next.js or pnpm upgrades may resurface related issues — if a build suddenly fails, suspect bundler/middleware/lint config first.
