@@ -14,9 +14,12 @@ export default async function ModuleRootPage({
   if (!mod) notFound();
   const route = mod.config.routes.find((r) => r.path === '/');
   if (!route) notFound();
-  const imported = await loadModuleExport<{
-    default: () => Promise<ReactNode> | ReactNode;
-  }>(moduleId, route.component);
+  const imported = await loadModuleExport(
+    moduleId,
+    route.component,
+    (m): m is { default: () => Promise<ReactNode> | ReactNode } =>
+      typeof (m as { default?: unknown }).default === 'function',
+  );
   return (
     <ModuleErrorBoundary moduleName={mod.config.name}>
       {await imported.default()}

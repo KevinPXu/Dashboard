@@ -1,40 +1,24 @@
 import 'server-only';
+import { importModuleFile } from './module-import-impl';
+
+export type ModuleExportValidator<T> = (mod: unknown) => mod is T;
 
 /**
- * Dynamically imports a file from a module's source tree at runtime.
- *
- * Why this exists: `await import(absolutePath)` fails under Turbopack with
- * "Cannot find module as expression is too dynamic" because the bundler
- * can't statically infer the candidate set. By anchoring the template
- * literal at `@/modules/...`, Turbopack treats it as a context-style import
- * — it globs the candidate set at build time and resolves the right one
- * from the runtime values.
- *
- * Both `.ts` and `.tsx` are attempted because module manifests reference
- * files without extensions.
+ * Dynamically imports a file from a module's source tree at runtime, then
+ * runtime-validates its shape with the supplied type guard. A validator is
+ * REQUIRED — there is no unchecked cast — so callers cannot silently trust an
+ * arbitrary dynamically-loaded shape.
  */
-export async function loadModuleExport<T = unknown>(
+export async function loadModuleExport<T>(
   moduleId: string,
   relativePath: string,
+  validator: ModuleExportValidator<T>,
 ): Promise<T> {
-  // Try .tsx first (UI components), then .ts (API handlers, libs).
-  // webpackInclude excludes *.test.ts(x) so vitest doesn't get bundled.
-  try {
-    return (await import(
-      /* webpackInclude: /(?<!\.test)\.tsx$/ */
-      `@/modules/${moduleId}/${relativePath}.tsx`
-    )) as T;
-  } catch (errTsx) {
-    try {
-      return (await import(
-        /* webpackInclude: /(?<!\.test)\.ts$/ */
-        `@/modules/${moduleId}/${relativePath}.ts`
-      )) as T;
-    } catch (errTs) {
-      throw new Error(
-        `Failed to load module export @/modules/${moduleId}/${relativePath}: ` +
-          `tsx=${(errTsx as Error).message}; ts=${(errTs as Error).message}`,
-      );
-    }
+  const raw = await importModuleFile(moduleId, relativePath);
+  if (!validator(raw)) {
+    throw new Error(
+      `Loaded module export at @/modules/${moduleId}/${relativePath} did not match expected shape`,
+    );
   }
+  return raw;
 }

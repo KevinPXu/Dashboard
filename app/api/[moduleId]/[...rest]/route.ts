@@ -34,7 +34,11 @@ async function handle(method: string, moduleId: string, rest: string[], req: Req
   const handlerName = rest.length === 0 ? 'index' : rest.join('.');
   let imported: Record<string, unknown>;
   try {
-    imported = await loadModuleExport<Record<string, unknown>>(moduleId, `api/${handlerName}`);
+    imported = await loadModuleExport(
+      moduleId,
+      `api/${handlerName}`,
+      (m): m is Record<string, unknown> => typeof m === 'object' && m !== null,
+    );
   } catch {
     return new Response('Not found', { status: 404 });
   }
