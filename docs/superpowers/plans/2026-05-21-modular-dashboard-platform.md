@@ -1,5 +1,7 @@
 # Modular Personal Dashboard — Platform Implementation Plan
 
+> **Status (2026-05-23):** Shipped. Platform deployed to production at https://kevindev.tech via Vercel project `kevinpxu21-8917s-projects/dashboard`. All 13 phases complete. Remaining cleanup items tracked under "Post-ship outstanding items" at the bottom of this document.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build the dashboard platform — a single Next.js 15 app on Vercel that hosts pluggable modules, with strict isolation, shared Postgres, single-user auth, share links, and a TDD discipline. After this plan, the platform can host module implementations (Job Tracker etc. follow as separate plans).
@@ -28,6 +30,7 @@
 10. **Module scaffolding** — `_template/` and `pnpm new-module` CLI
 11. **End-to-end smoke module** — trivial `modules/_smoke/` exercising every extension point
 12. **CI & deploy** — GitHub Actions, Vercel config, env conventions
+13. **Production deployment & custom domain** — Vercel project settings, production env vars, `main` branch promotion, custom domain attachment
 
 ---
 
@@ -4870,3 +4873,146 @@ After this plan ships, the next cycle is:
 1. Brainstorm the Job Tracker module spec
 2. Write the Job Tracker module implementation plan
 3. Build it, validating that the platform contract holds
+
+---
+
+# Phase 13: Production deployment & custom domain
+
+Added 2026-05-23 after retro-fitting the deployment work that Phase 12 didn't cover. Phase 12 wired CI; this phase covers the actual first Vercel deploy and DNS for the custom domain. Captured here so the steps are repeatable for any future Vercel project (and so the failure modes we hit don't bite next time).
+
+## Task 13.1: Link the local repo to the Vercel project
+
+- [x] Install the Vercel CLI (`npm i -g vercel`) and run `vercel login`.
+- [x] Run `vercel link --yes --project dashboard --scope <team-id>` from the repo root.
+- [x] Commit `.gitignore` entry for `.vercel/` (created by `vercel link`, contains only project linkage metadata, must not be tracked).
+
+## Task 13.2: Set the framework preset to Next.js
+
+**Failure mode this prevents:** if the Vercel project is created with framework `null` ("Other"), `next build` runs and produces output, but Vercel's serving layer has no Next.js-aware routing — every request, including `/_next/static`, returns `x-vercel-error: NOT_FOUND`. Builds appear green; the site is universally 404.
+
+- [x] Verify the preset is `nextjs`, not `null`:
+  ```bash
+  TOKEN=$(python3 -c "import json; print(json.load(open('$HOME/.local/share/com.vercel.cli/auth.json'))['token'])")
+  TEAM=$(python3 -c "import json; print(json.load(open('.vercel/project.json'))['orgId'])")
+  PROJ=$(python3 -c "import json; print(json.load(open('.vercel/project.json'))['projectId'])")
+  curl -s "https://api.vercel.com/v9/projects/$PROJ?teamId=$TEAM" -H "Authorization: Bearer $TOKEN" \
+    | python3 -c "import sys,json; print('framework =', json.load(sys.stdin).get('framework'))"
+  # Expected: framework = nextjs
+  ```
+- [x] If it shows `None` or anything else, patch it:
+  ```bash
+  curl -s -X PATCH "https://api.vercel.com/v9/projects/$PROJ?teamId=$TEAM" \
+    -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+    -d '{"framework":"nextjs"}'
+  ```
+
+## Task 13.3: Populate production environment variables
+
+The four required env vars (`DATABASE_URL`, `DASHBOARD_PASSWORD`, `SHARE_LINK_SIGNING_KEY`, `SESSION_COOKIE_SECRET`) must exist with real values in the `production` target. (Optional: also set for `preview` if you want PR previews to be functional.)
+
+- [x] Generate fresh production secrets locally (do **not** reuse `.env.local` keys for prod):
+  ```bash
+  python3 -c "import secrets; print(secrets.token_hex(32))"   # SHARE_LINK_SIGNING_KEY
+  python3 -c "import secrets; print(secrets.token_hex(32))"   # SESSION_COOKIE_SECRET
+  ```
+- [x] Set each via CLI so values never echo into shell history:
+  ```bash
+  vercel env rm DATABASE_URL production --yes && vercel env add DATABASE_URL production
+  vercel env rm DASHBOARD_PASSWORD production --yes && vercel env add DASHBOARD_PASSWORD production
+  vercel env rm SHARE_LINK_SIGNING_KEY production --yes && vercel env add SHARE_LINK_SIGNING_KEY production
+  vercel env rm SESSION_COOKIE_SECRET production --yes && vercel env add SESSION_COOKIE_SECRET production
+  ```
+
+## Task 13.4: Promote to production by merging to `main`
+
+The Vercel project's production branch is `main`. All Phase 1–12 work happened on `platform-bootstrap`. Production deploys only fire when `main` advances.
+
+- [x] Merge `platform-bootstrap` into `main`:
+  ```bash
+  git checkout main
+  git pull --ff-only origin main
+  git merge platform-bootstrap --no-edit
+  git push origin main
+  ```
+- [x] Watch the auto-triggered production deploy:
+  ```bash
+  vercel ls --prod | head
+  # Wait for the new Production deployment to reach status ● Ready
+  ```
+
+## Task 13.5: Attach the custom domain
+
+- [x] Add the domain in **Vercel → Project → Settings → Networking → Domains** (in older UI builds the panel is at Settings → Domains).
+  - Apex (`kevindev.tech`) + offer to add `www.kevindev.tech` with redirect.
+- [x] Set DNS at the registrar (Squarespace in our case):
+  - `A` record on `@` → `216.198.79.1` (Vercel's current apex IP — Vercel will display the exact value when you add the domain).
+  - `CNAME` record on `www` → `cname.vercel-dns.com`.
+- [x] Wait for DNS propagation + automatic SSL issuance (typically 2–10 minutes).
+- [x] Verify resolution from outside your local DNS cache:
+  ```bash
+  getent hosts kevindev.tech                 # should resolve to a Vercel IP (e.g. 216.198.79.x)
+  getent hosts www.kevindev.tech             # should resolve to cname.vercel-dns.com IPs
+  curl -sI https://kevindev.tech/            # expect: HTTP/2 307, server: Vercel, location: /login
+  curl -sI https://kevindev.tech/login       # expect: HTTP/2 200
+  ```
+- [x] If your browser keeps loading the old site (e.g. Squarespace), it is almost always **stale cookies** scoped to that domain — open an incognito window or clear cookies for the domain. DNS itself is usually correct by the time SSL has issued.
+
+## Checkpoint 13 — Custom domain serves the dashboard end-to-end
+
+**Testing suite:**
+
+```bash
+# 1. Apex resolves to Vercel and the app renders
+curl -sI https://kevindev.tech/ | grep -E "HTTP|server:|location:"
+# Expected: HTTP/2 307, server: Vercel, location: /login
+
+curl -sIL https://kevindev.tech/ -o /dev/null -w "%{http_code} %{url_effective}\n"
+# Expected: 200 https://kevindev.tech/login
+
+# 2. www variant also serves Vercel (either as alias or as redirect to apex)
+curl -sI https://www.kevindev.tech/ | head -3
+# Expected: HTTP/2 200 or HTTP/2 308 (redirect to apex)
+
+# 3. Auth gate is live
+curl -sI https://kevindev.tech/api/smoke/health
+# Expected: HTTP/2 401 (no session → blocked, exactly as designed)
+
+# 4. Production env vars are all present (does not print values; sensitive)
+TOKEN=$(python3 -c "import json; print(json.load(open('$HOME/.local/share/com.vercel.cli/auth.json'))['token'])")
+TEAM=$(python3 -c "import json; print(json.load(open('.vercel/project.json'))['orgId'])")
+PROJ=$(python3 -c "import json; print(json.load(open('.vercel/project.json'))['projectId'])")
+curl -s "https://api.vercel.com/v10/projects/$PROJ/env?teamId=$TEAM" -H "Authorization: Bearer $TOKEN" \
+  | python3 -c "
+import sys,json
+d=json.load(sys.stdin); envs=d.get('envs',d)
+needed=['DATABASE_URL','DASHBOARD_PASSWORD','SHARE_LINK_SIGNING_KEY','SESSION_COOKIE_SECRET']
+for n in needed:
+    rows=[e for e in envs if e.get('key')==n and 'production' in e.get('target',[])]
+    print(n, 'OK' if rows else 'MISSING')
+"
+# Expected: all four print OK
+```
+
+**Manual verification:**
+
+1. Open `https://kevindev.tech` in an incognito window. Confirm the login page renders.
+2. Log in with the `DASHBOARD_PASSWORD` you set in 13.3. Confirm you land on the home grid (the smoke module's widget is fine in v1).
+3. Hit `https://kevindev.tech/admin`. Confirm it's gated and accessible only when signed in.
+
+**What this verifies:** the platform is live on the custom domain, SSL is in place, auth gates serve their role, and Vercel is serving the actual Next.js app (not a stale parking page or a misconfigured "Other" project).
+
+---
+
+## Post-ship outstanding items (not blocking, but track these)
+
+These are real gaps in the shipped state that did not warrant blocking the launch but should be closed before any second module ships:
+
+1. **Preview env vars are incomplete.** `DATABASE_URL`, `SHARE_LINK_SIGNING_KEY`, and `SESSION_COOKIE_SECRET` are set for both `preview` and `production`, but `DASHBOARD_PASSWORD` is only set for `production`. Branch preview deploys will 500 on login. Fix:
+   ```bash
+   vercel env add DASHBOARD_PASSWORD preview
+   ```
+   Optionally use a distinct password for preview so leaked preview links can't unlock prod data.
+2. **Production DB may be the same Neon branch as local dev.** `DATABASE_URL` for production was sourced from `.env.local`, which per spec points at the `dev` Neon branch. Verify in Neon console; if so, create a `main` (production) Neon branch and rotate the production `DATABASE_URL` to it. Run `pnpm db:migrate` against the new branch before cutover.
+3. **`dashboard-<hash>.vercel.app` aliases are not load-bearing.** The auto-generated project alias (`dashboard-ruby-rho-80.vercel.app` historically) drifted to 404 after Phase 13 because the custom domain became primary. Custom domain is the source of truth; do not rely on the auto-alias.
+4. **The smoke module's cron is still active.** `vercel.json` currently registers `/api/smoke/cron/yearly` (schedule `0 0 1 1 *`). Harmless — fires once a year — but should be removed when the smoke module is replaced by a real module (Job Tracker).
+5. **Vercel deploy compatibility scars.** The `platform-bootstrap` branch carried several "fix: ... Vercel deploy compat" commits late in Phase 12 (Webpack vs Turbopack, edge vs Node middleware, ESLint config mismatch). These are now in `main`; future Next.js or pnpm upgrades may resurface them. If a Vercel build suddenly fails, suspect these areas first.
