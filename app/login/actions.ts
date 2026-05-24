@@ -2,8 +2,7 @@
 
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { db } from '@/lib/shared/db';
-import { sessions } from '@/platform/db/schema';
+import { createOwnerSession } from '@/lib/shared/sessions';
 import { signSessionToken } from '@/lib/shared/session-token';
 import { verifyPassword } from '@/lib/shared/password';
 import { SESSION_COOKIE } from '@/lib/shared/auth';
@@ -28,11 +27,8 @@ export async function loginAction(formData: FormData): Promise<void> {
   // occurs — the session token is stateless until Phase 7 wires up
   // request-time validation. Deleting a row does NOT log the user out
   // (rotate SESSION_COOKIE_SECRET for forced logout).
-  const [session] = await db.insert(sessions).values({ expiresAt }).returning({ id: sessions.id });
-
-  if (!session) {
-    redirect('/login?error=session');
-  }
+  const session = await createOwnerSession(expiresAt).catch(() => null);
+  if (!session) redirect('/login?error=session');
 
   const token = signSessionToken(
     { sid: session.id, exp: Math.floor(expiresAt.getTime() / 1000) },
