@@ -1,10 +1,14 @@
 'use server';
 
-import { saveLayout } from '@/lib/shared/widget-layout-store';
-import type { WidgetLayoutEntry } from '@/platform/db/schema';
+import {
+  saveLayout,
+  WidgetLayoutSchema,
+  type WidgetLayout,
+} from '@/lib/shared/widget-layout-store';
 import { requireOwner } from '@/lib/shared/auth';
 
-export async function saveLayoutAction(layout: WidgetLayoutEntry[]) {
+export async function saveLayoutAction(layout: WidgetLayout): Promise<void> {
   await requireOwner();
-  await saveLayout(layout);
+  const parsed = WidgetLayoutSchema.parse(layout);
+  await saveLayout(parsed);
 }

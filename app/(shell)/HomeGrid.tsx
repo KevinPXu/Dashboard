@@ -4,11 +4,11 @@ import { useState } from 'react';
 import GridLayout from 'react-grid-layout/legacy';
 import 'react-grid-layout/css/styles.css';
 import { WidgetErrorBoundary } from '@/components/shell/boundaries/WidgetErrorBoundary';
-import type { WidgetLayoutEntry } from '@/platform/db/schema';
+import type { WidgetLayout } from '@/lib/shared/widget-layout-store';
 import { saveLayoutAction } from './save-layout-action';
 
 type Props = {
-  initialLayout: WidgetLayoutEntry[];
+  initialLayout: WidgetLayout;
   widgets: Record<string, React.ReactNode>; // keyed by `${moduleId}:${widgetId}`
 };
 
@@ -32,7 +32,7 @@ export function HomeGrid({ initialLayout, widgets }: Props) {
       width={1100}
       layout={gridLayout}
       onLayoutChange={(next) => {
-        const merged: WidgetLayoutEntry[] = layout.map((entry) => {
+        const merged: WidgetLayout = layout.map((entry) => {
           const found = next.find((n) => n.i === `${entry.moduleId}:${entry.widgetId}`);
           if (!found) return entry;
           return { ...entry, x: found.x, y: found.y, w: found.w, h: found.h };

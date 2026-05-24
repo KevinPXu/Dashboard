@@ -16,6 +16,7 @@ export const WidgetLayoutEntrySchema = z.object({
   h: z.number().int().positive(),
 });
 export const WidgetLayoutSchema = z.array(WidgetLayoutEntrySchema);
+export type WidgetLayout = z.infer<typeof WidgetLayoutSchema>;
 
 export async function loadLayout(): Promise<WidgetLayoutEntry[] | null> {
   const rows = await db.select().from(widgetLayouts).where(eq(widgetLayouts.id, SINGLETON_ID));
