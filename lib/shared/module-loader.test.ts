@@ -314,6 +314,34 @@ describe('validateModuleStructure', () => {
     await expect(validateModuleStructure(dir, cfg)).rejects.toThrow(/POST/);
   });
 
+  it('skips the import-based method check under the Next.js server runtime', async () => {
+    // Under NEXT_RUNTIME, Node's ESM loader cannot import a `.ts` file by
+    // file:// URL, and the build already ran this gate — so the check is
+    // skipped at request time. A missing method export must NOT throw here.
+    const dir = path.join(tmpRoot, 'next-runtime-skip');
+    await fsp.mkdir(path.join(dir, 'api'), { recursive: true });
+    await fsp.writeFile(
+      path.join(dir, 'api', 'health.ts'),
+      'export async function GET(){ return new Response("ok") }',
+    );
+    const cfg = {
+      id: 'x',
+      routes: [],
+      api: [{ path: '/health', methods: ['GET', 'POST'] as ('GET' | 'POST')[] }],
+      widgets: [],
+      cron: [],
+      env: { required: [], optional: [] },
+    };
+    const prev = process.env.NEXT_RUNTIME;
+    process.env.NEXT_RUNTIME = 'nodejs';
+    try {
+      await expect(validateModuleStructure(dir, cfg)).resolves.toBeUndefined();
+    } finally {
+      if (prev === undefined) delete process.env.NEXT_RUNTIME;
+      else process.env.NEXT_RUNTIME = prev;
+    }
+  });
+
   describe('env enforcement', () => {
     it('rejects when env.required is missing from process.env', async () => {
       const dir = makeModule(tmpRoot, 'envmiss');

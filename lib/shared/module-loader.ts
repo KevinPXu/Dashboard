@@ -70,16 +70,23 @@ export async function validateModuleStructure(
     const handlerName =
       api.path === '/' ? 'index' : api.path.replace(/^\//, '').replace(/\//g, '.');
     await assertFileExists(dir, path.join('api', handlerName), ['.ts']);
-    const filePath = path.join(dir, 'api', handlerName + '.ts');
-    const mod = (await import(/* @vite-ignore */ pathToFileURL(filePath).href)) as Record<
-      string,
-      unknown
-    >;
-    for (const method of api.methods) {
-      if (typeof mod[method] !== 'function') {
-        throw new Error(
-          `Module "${config.id}" api ${api.path} declares ${method} but file does not export a ${method} function`,
-        );
+    // Verifying that every declared method is exported requires importing the
+    // handler module. Skip this under the Next.js server runtime: Node's ESM
+    // loader cannot import a `.ts` file by file:// URL there, and the build
+    // already enforced this gate (prebuild runs discoverModules under tsx).
+    // The check still runs in tests and the build-time prebuild.
+    if (!process.env.NEXT_RUNTIME) {
+      const filePath = path.join(dir, 'api', handlerName + '.ts');
+      const mod = (await import(/* @vite-ignore */ pathToFileURL(filePath).href)) as Record<
+        string,
+        unknown
+      >;
+      for (const method of api.methods) {
+        if (typeof mod[method] !== 'function') {
+          throw new Error(
+            `Module "${config.id}" api ${api.path} declares ${method} but file does not export a ${method} function`,
+          );
+        }
       }
     }
   }
