@@ -20,7 +20,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "db:generate": "dotenv -e .env.local -- drizzle-kit generate",
-    "db:migrate": "dotenv -e .env.local -- drizzle-kit migrate",
+    "db:migrate": "tsx scripts/migrate-all.ts",
     "db:studio": "dotenv -e .env.local -- drizzle-kit studio"
   },
   "dependencies": {
