@@ -18,9 +18,7 @@ export default async function SharePage({ params }: Props) {
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/',
-    maxAge: payload.exp
-      ? Math.max(0, payload.exp - Math.floor(Date.now() / 1000))
-      : 60 * 60 * 24,
+    maxAge: payload.exp ? Math.max(0, payload.exp - Math.floor(Date.now() / 1000)) : 60 * 60 * 24,
   });
 
   return (

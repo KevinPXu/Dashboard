@@ -23,12 +23,7 @@ vi.mock('@/lib/shared/registry', () => ({
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
 import { requireOwner } from '@/lib/shared/auth';
-import {
-  createLinkAction,
-  revokeLinkAction,
-  getShareableRoutes,
-  listShareLinks,
-} from './actions';
+import { createLinkAction, revokeLinkAction, getShareableRoutes, listShareLinks } from './actions';
 
 beforeEach(() => vi.clearAllMocks());
 

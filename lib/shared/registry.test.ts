@@ -105,7 +105,10 @@ function makeModuleWithApiAndCron(root: string, id: string) {
   };
   writeFile(path.join(dir, 'module.config.json'), JSON.stringify(config));
   writeFile(path.join(dir, 'routes/index.tsx'), 'export default function P(){return null}\n');
-  writeFile(path.join(dir, 'api/health.ts'), 'export const GET = async () => new Response("ok");\n');
+  writeFile(
+    path.join(dir, 'api/health.ts'),
+    'export const GET = async () => new Response("ok");\n',
+  );
   writeFile(
     path.join(dir, 'api/cron.daily.ts'),
     'export const GET = async () => new Response("ok");\n',

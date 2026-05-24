@@ -20,9 +20,7 @@ describe('widget-layout-store', () => {
     expect(await loadLayout()).toBeNull();
   });
   it('returns parsed entries for a valid row', async () => {
-    const layout = [
-      { moduleId: 'a', widgetId: 'b', enabled: true, x: 0, y: 0, w: 2, h: 2 },
-    ];
+    const layout = [{ moduleId: 'a', widgetId: 'b', enabled: true, x: 0, y: 0, w: 2, h: 2 }];
     vi.mocked(db.select).mockReturnValueOnce(selectChain([{ layout }]) as never);
     expect(await loadLayout()).toEqual(layout);
   });

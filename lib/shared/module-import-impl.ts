@@ -13,10 +13,7 @@ import 'server-only';
  * Both .tsx and .ts are attempted because manifests reference files without
  * extensions. The webpackInclude comments keep *.test.ts(x) out of the bundle.
  */
-export async function importModuleFile(
-  moduleId: string,
-  relativePath: string,
-): Promise<unknown> {
+export async function importModuleFile(moduleId: string, relativePath: string): Promise<unknown> {
   try {
     return await import(
       /* webpackInclude: /(?<!\.test)\.tsx$/ */

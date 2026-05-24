@@ -1,9 +1,5 @@
 import { notFound } from 'next/navigation';
-import {
-  getModuleById,
-  getCronHandlerPaths,
-  isApiPathDeclared,
-} from '@/lib/shared/registry';
+import { getModuleById, getCronHandlerPaths, isApiPathDeclared } from '@/lib/shared/registry';
 import { loadModuleExport } from '@/lib/shared/module-import';
 import { getSession } from '@/lib/shared/auth';
 
@@ -50,12 +46,10 @@ async function handle(method: string, moduleId: string, rest: string[], req: Req
 }
 
 type RouteCtx = { params: Promise<{ moduleId: string; rest: string[] }> };
-const wrap =
-  (method: string) =>
-  async (req: Request, ctx: RouteCtx) => {
-    const { moduleId, rest } = await ctx.params;
-    return handle(method, moduleId, rest, req);
-  };
+const wrap = (method: string) => async (req: Request, ctx: RouteCtx) => {
+  const { moduleId, rest } = await ctx.params;
+  return handle(method, moduleId, rest, req);
+};
 
 export const GET = wrap('GET');
 export const POST = wrap('POST');

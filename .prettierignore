@@ -16,6 +16,7 @@ next-env.d.ts
 
 # Drizzle migration output (generator-managed)
 platform/db/migrations/
+modules/*/db/migrations/
 
 # Module scaffolding templates (contain {{PLACEHOLDER}} that breaks parsers)
 modules/_template/
