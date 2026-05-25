@@ -2,7 +2,7 @@
 
 > **Status:** Living document. Updated continuously during brainstorming and development. Decisions are locked in here so they survive session loss and inform all future work.
 >
-> **Last updated:** 2026-05-24 (aligned with adversarial-review remediation)
+> **Last updated:** 2026-05-24 (synced §4/§11.2/§12.2 with built code: route-group layout, removed phantom `cron.ts`, CI uses a Postgres service container not Neon)
 
 ---
 
@@ -98,12 +98,15 @@ These principles override convenience. If a decision conflicts with one of these
 Dashboard/
 ├── CLAUDE.md                    ← this document
 ├── app/                         ← Next.js app router (shell-owned)
-│   ├── layout.tsx               ← sidebar + auth gate
-│   ├── page.tsx                 ← home (widget grid)
+│   ├── layout.tsx               ← root html/theme shell
 │   ├── login/                   ← password login
 │   ├── share/[token]/           ← share-link entry point
-│   ├── admin/                   ← share links, module toggles, layout reset
-│   └── (modules)/               ← dynamic mount point for module routes
+│   ├── api/[moduleId]/[...rest]/← dynamic mount for module API handlers (/api/<id>/*)
+│   └── (shell)/                 ← authed route group (sidebar + auth gate)
+│       ├── layout.tsx           ← sidebar + auth gate
+│       ├── page.tsx + HomeGrid.tsx ← home (widget grid)
+│       ├── admin/               ← share links, module toggles, layout reset
+│       └── [moduleId]/[...rest]/← dynamic mount for module routes (/<id>/*)
 ├── modules/                     ← all modules live here
 │   ├── _template/               ← scaffolding template for `pnpm new-module`
 │   └── <module-id>/             ← one folder per module
@@ -134,7 +137,7 @@ Dashboard/
 │   ├── db.ts                    ← Drizzle client, schema composition
 │   ├── share-links.ts           ← sign / verify / revoke
 │   ├── share-render.ts          ← resolve & render a shared route for a guest
-│   ├── cron.ts                  ← cron registration helper
+│   ├── password.ts              ← hash / verify the owner password
 │   ├── proxy.ts                 ← Edge auth gate + guest write-block (re-exported by root middleware.ts)
 │   ├── module-loader.ts         ← discover & validate modules at build time
 │   ├── module-import.ts         ← validated dynamic module imports (public surface)
@@ -143,6 +146,10 @@ Dashboard/
 │   ├── env-validator.ts         ← validatePlatformEnv / validateRequiredEnv
 │   ├── widget-layout-store.ts   ← read/write platform.widget_layouts
 │   ├── widget-render.ts         ← resolve & render home-page widgets
+│   ├── widgets.ts               ← widget discovery / registry helpers
+│   ├── errors.ts                ← typed platform errors (NotFoundError, etc.)
+│   ├── logger.ts                ← structured JSON logger
+│   ├── with-error-handler.ts    ← API route error-handling wrapper
 │   └── types.ts                 ← ModuleConfig type, shared interfaces
 ├── platform/                    ← platform-owned DB schema & migrations
 │   └── db/
@@ -403,7 +410,8 @@ Setup once:
 Recommended branch layout:
 - `main` (Neon branch) — production
 - `dev` (Neon branch) — local development
-- Per-test/CI branches created on demand via `neonctl branch create` (CI uses ephemeral branches; local tests can either reuse `dev` or create their own)
+- CI (`ci.yml`) does **not** use Neon — its integration and E2E jobs run against a `postgres:16-alpine` GitHub Actions service container. Neon is the local-dev and production target only.
+- Local tests can either reuse `dev` or create their own Neon branch on demand via `neonctl branch create`
 
 | Script | Purpose |
 |---|---|
@@ -438,16 +446,17 @@ Standard Next.js HMR. Manifest changes re-validate on save with non-blocking dev
 
 ### 12.2 GitHub Actions on PR
 
-`ci.yml` runs:
+`ci.yml` runs five jobs:
 
-1. Lint + typecheck (parallel) — ESLint with cross-module ban rule, Prettier, `tsc --noEmit`
-2. Module loader validation
-3. `pnpm build`
-4. Unit tests + coverage (fails if any module's `lib/` < 80%)
-5. Integration tests against ephemeral Neon branch
-6. Playwright smoke against the Vercel preview URL
+1. **`lint-and-typecheck`** — `pnpm format:check` (Prettier), `pnpm lint` (ESLint with cross-module ban rule), `pnpm typecheck` (`tsc --noEmit`)
+2. **`unit-tests`** — `pnpm test:coverage` (fails if `lib/` coverage < 80%)
+3. **`integration-tests`** — against a `postgres:16-alpine` service container; runs `pnpm db:migrate` then `pnpm test:integration`
+4. **`build`** (needs lint + unit) — `pnpm build`, whose `prebuild` runs `build:vercel-config` (cron aggregation + env validation, incl. module loader)
+5. **`e2e`** (needs build) — Playwright against the same Postgres service container (`pnpm db:migrate` then `pnpm test:e2e`), with browser caching
 
-Branch protection: PR required on `main`, all checks must pass.
+Jobs 1–3 run in parallel; `build` waits on 1–2; `e2e` waits on `build`. Triggers: every `pull_request` and pushes to `main`.
+
+Branch protection (PR required on `main`, all checks must pass) is a GitHub repo setting, not defined in `ci.yml`.
 
 ### 12.3 Migrations on deploy
 
